@@ -3,10 +3,13 @@ import { useDispatch, useSelector } from 'react-redux';
 import { loginStart, loginSuccess, loginFailure } from '../../store/userSlice';
 import api from '../../services/api';
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+ 
 
 const LoginForm = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
+
+
   const { loading, error } = useSelector((state) => state.user);
 
   const [formData, setFormData] = useState({
@@ -14,30 +17,26 @@ const LoginForm = () => {
     password: ''
   });
 
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     dispatch(loginStart());
-  
     try {
       const response = await api.post('/Auth/login', formData);
-      const token = response.data.token;
-  
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', JSON.stringify(response.data.user)); // 👈 bu eklendi
-  
-      dispatch(loginSuccess(response.data.user));
-  
-      setTimeout(() => {
-        navigate('/home');
-      }, 0);
+      const { accessToken, refreshToken } = response.data;
+
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+      window.location.reload();
+
     } catch (err) {
       dispatch(loginFailure('Email veya şifre hatalı'));
     }
   };
+  
   
 
   return (

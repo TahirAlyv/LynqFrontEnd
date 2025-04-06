@@ -7,34 +7,39 @@ import AuthSelector from './components/Auth/AuthSelector';
 import HomePage from './pages/HomePage';
 import { useDispatch } from 'react-redux';
 import { useEffect } from 'react';
-import { loginSuccess } from './store/userSlice';
-
+import {loginSuccess,authCheckDone} from './store/userSlice';
+import api from './services/api';
+import ProfilePage from './pages/ProfilePage';
  
 
 function App() {
- 
   const dispatch = useDispatch();
-  const user = useSelector((state) => state.user.user);
   const token = localStorage.getItem('token');
-
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-  
-   
+  const { user, authLoading } = useSelector((state) => state.user); 
+debugger;
+useEffect(() => {
+  const fetchUser = async () => {
     try {
-      if (token && userData && userData !== 'undefined' && !user) {
-        const parsedUser = JSON.parse(userData);
-        dispatch(loginSuccess(parsedUser));
+      if (token) {
+        const res = await api.get('/user/me');
+        dispatch(loginSuccess(res.data));
       }
     } catch (err) {
-      console.error('User verisi parse edilemedi ❌:', err);
-      localStorage.removeItem('user');  
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+    } finally {
+      dispatch(authCheckDone());  
     }
-  }, [dispatch, user]);
+  };
+
+  fetchUser();
+}, []);
+
   
-  
+
+  if (authLoading) {
+    return <div>Yükleniyor...</div>;
+  }
 
   return (
     <Router>
@@ -43,6 +48,7 @@ function App() {
         <Route path="/login" element={token && user ? <Navigate to="/home" /> : <LoginForm />} />
         <Route path="/register" element={token && user ? <Navigate to="/home" /> : <RegisterForm />} />
         <Route path="/home" element={token && user ? <HomePage /> : <Navigate to="/" />} />
+        <Route path="/profile" element={<ProfilePage/>} />
       </Routes>
     </Router>
   );

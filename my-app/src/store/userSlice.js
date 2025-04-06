@@ -5,6 +5,7 @@ const initialState = {
   user: null,
   loading: false,
   error: null,
+  authLoading: true
 };
 
 const userSlice = createSlice({
@@ -33,11 +34,17 @@ const userSlice = createSlice({
     loginSuccess: (state, action) => {
       state.loading = false;
       state.user = action.payload;
+      state.authLoading = false;
+      
     },
     loginFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;
+      state.authLoading = false;
     },
+    authCheckDone: (state) => {
+      state.authLoading = false;
+    }
   },
 });
 
@@ -49,7 +56,9 @@ export const {
   loginStart,
   loginSuccess,
   loginFailure,
+  authCheckDone 
 } = userSlice.actions;
 
 export default userSlice.reducer;
 
+ 
