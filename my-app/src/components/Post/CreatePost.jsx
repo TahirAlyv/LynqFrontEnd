@@ -135,14 +135,14 @@ const CreatePost = ({ onPostCreated }) => {
 const styles = {
   form: {
     backgroundColor: '#fff',
-    padding: '20px',
+    padding: '30px',
     borderRadius: '10px',
     boxShadow: '0 0 8px rgba(0,0,0,0.1)',
     marginBottom: '30px'
   },
   input: {
     display: 'block',
-    width: '100%',
+    width: '98%',
     padding: '10px',
     marginBottom: '10px',
     border: '1px solid #ccc',
@@ -151,7 +151,7 @@ const styles = {
   },
   textarea: {
     display: 'block',
-    width: '100%',
+    width: '98%',
     minHeight: '80px',
     padding: '10px',
     marginBottom: '10px',

@@ -10,6 +10,8 @@ import { useEffect } from 'react';
 import {loginSuccess,authCheckDone} from './store/userSlice';
 import api from './services/api';
 import ProfilePage from './pages/ProfilePage';
+import SearchPage from './components/Search/SearchPage';
+
  
 
 function App() {
@@ -48,6 +50,7 @@ useEffect(() => {
         <Route path="/login" element={token && user ? <Navigate to="/home" /> : <LoginForm />} />
         <Route path="/register" element={token && user ? <Navigate to="/home" /> : <RegisterForm />} />
         <Route path="/home" element={token && user ? <HomePage /> : <Navigate to="/" />} />
+        <Route path="/search" element={token && user ? <SearchPage /> : <Navigate to="/" />} />
         <Route path="/profile" element={<ProfilePage/>} />
       </Routes>
     </Router>

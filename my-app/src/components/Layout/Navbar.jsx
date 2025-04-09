@@ -1,10 +1,15 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import defaultAvatar from '../../assets/default-avatar.png';  
 
 const Navbar = () => {
   const user = useSelector((state) => state.user.user);
+  const navigate = useNavigate();
+
+  const handleSearchClick = () => {
+    navigate('/search');
+  };
 
   return (
     <nav style={styles.navbar}>
@@ -14,6 +19,13 @@ const Navbar = () => {
         <Link to="/jobs">İş İlanları</Link>
         <Link to="/messages">Mesajlar</Link>
         <Link to="/notifications">Bildirimler</Link>
+      </div>
+
+      <div style={styles.searchContainer}>
+        <div style={styles.searchBox} onClick={handleSearchClick}>
+          <span style={styles.icon}>🔍</span>
+          <span style={styles.placeholder}>Arama yap</span>
+        </div>
       </div>
 
       <div style={styles.right}>
@@ -46,6 +58,28 @@ const styles = {
     display: 'flex',
     gap: '20px',
     alignItems: 'center',
+  },
+  searchContainer: {
+    flex: 1,
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  searchBox: {
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: '#f1f1f1',
+    borderRadius: '8px',
+    padding: '6px 12px',
+    cursor: 'pointer',
+    width: '250px',
+  },
+  icon: {
+    marginRight: '8px',
+    fontSize: '16px',
+  },
+  placeholder: {
+    color: '#555',
+    fontSize: '14px',
   },
   right: {
     display: 'flex',
