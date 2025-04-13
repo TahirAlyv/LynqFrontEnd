@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { registerStart, registerSuccess, registerFailure } from '../../store/userSlice';
 import api from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 
 const RegisterForm = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { loading, error } = useSelector((state) => state.user);
 
   const [formData, setFormData] = useState({
@@ -35,6 +37,7 @@ const RegisterForm = () => {
     try {
       const response = await api.post(`/Auth/${userType}s/register`, formData);
       dispatch(registerSuccess(response.data));
+      navigate('/login')
     } catch (err) {
       dispatch(registerFailure(err.message));
     }
@@ -45,7 +48,6 @@ const RegisterForm = () => {
       <div style={styles.card}>
         <h2 style={styles.title}>Register</h2>
 
-        {/* Kullanıcı tipi seçimi */}
         <div style={styles.radioGroup}>
           <label>
             <input

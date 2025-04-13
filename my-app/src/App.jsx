@@ -11,6 +11,7 @@ import {loginSuccess,authCheckDone} from './store/userSlice';
 import api from './services/api';
 import ProfilePage from './pages/ProfilePage';
 import SearchPage from './components/Search/SearchPage';
+import OtherUserProfilePage from './pages/OtherUserProfilePage';
 
  
 
@@ -39,9 +40,9 @@ useEffect(() => {
 
   
 
-  if (authLoading) {
-    return <div>Yükleniyor...</div>;
-  }
+if (authLoading) {
+  return <div>Loading...</div>;
+}
 
   return (
     <Router>
@@ -51,6 +52,7 @@ useEffect(() => {
         <Route path="/register" element={token && user ? <Navigate to="/home" /> : <RegisterForm />} />
         <Route path="/home" element={token && user ? <HomePage /> : <Navigate to="/" />} />
         <Route path="/search" element={token && user ? <SearchPage /> : <Navigate to="/" />} />
+        <Route path="/profile/:username" element={<OtherUserProfilePage />} />
         <Route path="/profile" element={<ProfilePage/>} />
       </Routes>
     </Router>

@@ -12,7 +12,6 @@ const userSlice = createSlice({
   name: 'user',
   initialState,
   reducers: {
-    // REGISTER
     registerStart: (state) => {
       state.loading = true;
       state.error = null;
@@ -25,8 +24,6 @@ const userSlice = createSlice({
       state.loading = false;
       state.error = action.payload;
     },
-
-    // LOGIN
     loginStart: (state) => {
       state.loading = true;
       state.error = null;
@@ -48,7 +45,6 @@ const userSlice = createSlice({
   },
 });
 
-// Tüm action'ları buradan dışa aktar
 export const {
   registerStart,
   registerSuccess,

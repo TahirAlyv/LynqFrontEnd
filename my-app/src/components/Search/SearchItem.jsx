@@ -6,17 +6,15 @@ const SearchItem = ({ user }) => {
   const navigate = useNavigate();
 
   const handleClick = () => {
-    if (user.isPublic) {
-      navigate(`/profile/${user.username}`);
-    }
+    debugger;
+    navigate(`/profile/${user.userName}`);
   };
 
   return (
     <div style={styles.container} onClick={handleClick}>
       <img src={user.profileImage || defaultAvatar} alt="" style={styles.avatar} />
       <div style={styles.info}>
-        <span style={{ fontWeight: 'bold' }}>{user.username}</span>
-        {!user.isPublic && <span style={styles.lock}>🔒</span>}
+        <span style={{ fontWeight: 'bold' }}>{user.userName}</span>
       </div>
       <button style={styles.followBtn}>Takip Et</button>
     </div>
@@ -39,7 +37,7 @@ const styles = {
     marginRight: 12,
   },
   info: {
-    flex: 1,
+    marginRight:600,
   },
   lock: {
     marginLeft: 8,

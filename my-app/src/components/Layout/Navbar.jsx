@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import defaultAvatar from '../../assets/default-avatar.png';  
@@ -13,31 +13,30 @@ const Navbar = () => {
 
   return (
     <nav style={styles.navbar}>
-      <div style={styles.left}>
-        <Link to="/home" style={styles.logo}>MiniLink</Link>
-        <Link to="/home">Ana Sayfa</Link>
-        <Link to="/jobs">İş İlanları</Link>
-        <Link to="/messages">Mesajlar</Link>
-        <Link to="/notifications">Bildirimler</Link>
-      </div>
+  <div style={styles.left}>
+    <Link to="/home" style={styles.logo}>WorkHub</Link>
+    <Link to="/home">Home</Link>
+    <Link to="/jobs">Job Listings</Link>
+    <Link to="/messages">Messages</Link>
+    <Link to="/notifications">Notifications</Link>
+    
+    <div style={styles.searchBox} onClick={handleSearchClick}>
+      <span style={styles.icon}>🔍</span>
+      <span style={styles.placeholder}>Search</span>
+    </div>
+  </div>
 
-      <div style={styles.searchContainer}>
-        <div style={styles.searchBox} onClick={handleSearchClick}>
-          <span style={styles.icon}>🔍</span>
-          <span style={styles.placeholder}>Arama yap</span>
-        </div>
-      </div>
+  <div style={styles.right}>
+    <Link to="/profile">
+      <img
+        src={user?.photoUrl || defaultAvatar}
+        alt="Profile"
+        style={styles.avatar}
+      />
+    </Link>
+  </div>
+</nav>
 
-      <div style={styles.right}>
-        <Link to="/profile">
-          <img
-            src={user?.photoUrl || defaultAvatar}
-            alt="Profil"
-            style={styles.avatar}
-          />
-        </Link>
-      </div>
-    </nav>
   );
 };
 
@@ -59,28 +58,6 @@ const styles = {
     gap: '20px',
     alignItems: 'center',
   },
-  searchContainer: {
-    flex: 1,
-    display: 'flex',
-    justifyContent: 'center',
-  },
-  searchBox: {
-    display: 'flex',
-    alignItems: 'center',
-    backgroundColor: '#f1f1f1',
-    borderRadius: '8px',
-    padding: '6px 12px',
-    cursor: 'pointer',
-    width: '250px',
-  },
-  icon: {
-    marginRight: '8px',
-    fontSize: '16px',
-  },
-  placeholder: {
-    color: '#555',
-    fontSize: '14px',
-  },
   right: {
     display: 'flex',
     alignItems: 'center',
@@ -90,6 +67,23 @@ const styles = {
     color: '#0073b1',
     textDecoration: 'none',
     fontSize: '20px',
+  },
+  searchBox: {
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: '#f1f1f1',
+    borderRadius: '8px',
+    padding: '6px 12px',
+    cursor: 'pointer',
+    width: '100px',
+  },
+  icon: {
+    marginRight: '8px',
+    fontSize: '16px',
+  },
+  placeholder: {
+    color: '#555',
+    fontSize: '14px',
   },
   avatar: {
     width: '36px',

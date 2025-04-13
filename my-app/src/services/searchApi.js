@@ -3,10 +3,11 @@ import api from './api';
 
 export const searchUsers = async (query) => {
   try {
-    const response = await api.get(`/search/users?q=${query}`);
+    debugger;
+    const response = await api.get(`/User/users?query=${query}`);
     return response.data;
   } catch (error) {
-    console.error('❌ Arama hatası:', error);
+    console.error('❌ Search error:', error);
     throw error;
   }
 };

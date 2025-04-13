@@ -33,7 +33,8 @@ const LoginForm = () => {
       window.location.reload();
 
     } catch (err) {
-      dispatch(loginFailure('Email veya şifre hatalı'));
+      dispatch(loginFailure('Invalid email or password'));
+
     }
   };
   
@@ -42,7 +43,7 @@ const LoginForm = () => {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h2 style={styles.title}>Giriş Yap</h2>
+        <h2 style={styles.title}>Login</h2>
         <form onSubmit={handleSubmit} style={styles.form}>
           <input
             type="text"
@@ -58,12 +59,13 @@ const LoginForm = () => {
             name="password"
             value={formData.password}
             onChange={handleChange}
-            placeholder="Şifre"
+            placeholder="Password"
             required
             style={styles.input}
           />
           <button type="submit" disabled={loading} style={styles.button}>
-            {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+          {loading ? 'Signing in...' : 'Sign In'}
+
           </button>
           {error && !loading && (
             <p style={styles.error}>{error}</p>

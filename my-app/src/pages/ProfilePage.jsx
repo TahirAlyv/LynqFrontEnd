@@ -12,16 +12,17 @@ const ProfilePage = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
+        debugger;
         const res = await api.get('/user/me');
         setUser(res.data);
       } catch (err) {
-        console.error("Profil bilgisi alınamadı:", err);
+        console.error("Failed to fetch profile information:", err);
       }
     };
     fetchProfile();
   }, []);
 
-  if (!user) return <div style={{ textAlign: 'center', marginTop: '50px' }}>Yükleniyor...</div>;
+  if (!user) return <div style={{ textAlign: 'center', marginTop: '50px' }}>Loading....</div>;
 
   return (
     <>
@@ -36,9 +37,9 @@ const ProfilePage = () => {
             />
             <div style={styles.infoSection}>
               <h2 style={styles.name}>{user.username}</h2>
-              <p style={styles.bio}>{user.bio || 'Biyografi yok'}</p>
-              <p style={styles.detail}><strong>Meslek:</strong> {user.profession || 'Belirtilmemiş'}</p>
-              <p style={styles.detail}><strong>Deneyim:</strong> {user.experience || 'Yok'}</p>
+              <p style={styles.bio}>{user.bio || 'No biography provided'}</p>
+              <p style={styles.detail}><strong>Profession:</strong> {user.profession || 'Not specified'}</p>
+              <p style={styles.detail}><strong>Experience:</strong> {user.experience || 'None'}</p>
             </div>
           </div>
 
@@ -51,9 +52,10 @@ const ProfilePage = () => {
 
         <div style={styles.sidebar}>
           <div style={styles.sidebarBox}>
-            <p style={styles.sidebarItem} onClick={() => navigate('/profile/edit')}>Profili Düzenle</p>
-            <p style={styles.sidebarItem} onClick={() => navigate('/followers')}>Takipçiler</p>
-            <p style={styles.sidebarItem} onClick={() => navigate('/following')}>Takip Ettiklerim</p>
+          <p style={styles.sidebarItem} onClick={() => navigate('/profile/edit')}>Edit Profile</p>
+          <p style={styles.sidebarItem} onClick={() => navigate('/followers')}>Followers</p>
+          <p style={styles.sidebarItem} onClick={() => navigate('/following')}>Following</p>
+
           </div>
  
         </div>

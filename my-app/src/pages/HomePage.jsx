@@ -8,12 +8,11 @@ const HomePage = () => {
      <Navbar/>
       <div style={styles.wrapper}>
         <div style={styles.feed}>
-          <h2>📝 Akış</h2>
-          {/* Buraya postlar eklenecek */}
+          <h2>📝 Latest Posts</h2>
         </div>
         <div style={styles.sidebar}>
-          <h4>💼 Önerilen Şirketler</h4>
-          <p>(Gelecekte eklenecek)</p>
+          <h4>💼 Recommended Companies</h4>
+          <p>(Coming soon...)</p>
         </div>
       </div>
     </div>

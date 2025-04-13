@@ -7,11 +7,11 @@ const AuthSelector = () => {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h2>Hoş Geldiniz 👋</h2>
-        <p>Lütfen giriş yapın ya da yeni bir hesap oluşturun.</p>
+      <h2>Welcome 👋</h2>
+      <p>Please sign in or create a new account.</p>
         <div style={styles.buttons}>
-          <button onClick={() => navigate('/login')}>Giriş Yap</button>
-          <button onClick={() => navigate('/register')}>Kayıt Ol</button>
+        <button onClick={() => navigate('/login')}>Sign In</button>
+        <button onClick={() => navigate('/register')}>Sign Up</button>
         </div>
       </div>
     </div>

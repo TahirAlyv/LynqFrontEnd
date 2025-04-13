@@ -55,8 +55,7 @@ const CreatePost = ({ onPostCreated }) => {
             Authorization: `Bearer ${token}`
           }
         });
-      
-        console.log("✅ Post eklendi:", res.data);
+    
       
         if (res.data?.message) {
           alert(res.data.message);
@@ -74,8 +73,9 @@ const CreatePost = ({ onPostCreated }) => {
         if (onPostCreated) onPostCreated();
       
       } catch (err) {
-        console.error("❌ Gönderi başarısız:", err);
-        alert("Gönderi sırasında bir hata oluştu.");
+        console.error("❌ Post failed:", err);
+        alert("An error occurred while submitting the post.");
+        
       }
       
   };
@@ -87,7 +87,7 @@ const CreatePost = ({ onPostCreated }) => {
           name="content"
           value={formData.content}
           onChange={handleChange}
-          placeholder="Neler düşünüyorsun?"
+          placeholder="What's on your mind?"
           style={styles.textarea}
         />
       ) : (
@@ -97,14 +97,14 @@ const CreatePost = ({ onPostCreated }) => {
             name="title"
             value={formData.title}
             onChange={handleChange}
-            placeholder="Pozisyon Başlığı"
+            placeholder="Job Title"
             style={styles.input}
           />
           <textarea
             name="description"
             value={formData.description}
             onChange={handleChange}
-            placeholder="İş Tanımı"
+            placeholder="Job Description"
             style={styles.textarea}
           />
           <input
@@ -112,7 +112,7 @@ const CreatePost = ({ onPostCreated }) => {
             name="location"
             value={formData.location}
             onChange={handleChange}
-            placeholder="Lokasyon"
+            placeholder="Location"
             style={styles.input}
           />
           <input
@@ -120,14 +120,14 @@ const CreatePost = ({ onPostCreated }) => {
             name="salary"
             value={formData.salary}
             onChange={handleChange}
-            placeholder="Maaş"
+            placeholder="Salary"
             style={styles.input}
           />
         </>
       )}
 
       <input type="file" onChange={(e) => setFile(e.target.files[0])} style={{ marginBottom: '10px' }} />
-      <button type="submit" style={styles.button}>Gönderi Paylaş</button>
+      <button type="submit" style={styles.button}>Post</button>
     </form>
   );
 };
