@@ -4,11 +4,12 @@ import { loginStart, loginSuccess, loginFailure } from '../../store/userSlice';
 import api from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
  
 
 const LoginForm = () => {
   const dispatch = useDispatch();
-
+  
 
   const { loading, error } = useSelector((state) => state.user);
 
@@ -67,6 +68,10 @@ const LoginForm = () => {
           {loading ? 'Signing in...' : 'Sign In'}
 
           </button>
+          <div style={styles.linkContainer}> 
+            <Link to="/register" style={styles.link}>Create new account </Link>
+          </div>
+        
           {error && !loading && (
             <p style={styles.error}>{error}</p>
           )}
@@ -91,6 +96,7 @@ const styles = {
     boxShadow: '0 0 10px rgba(0,0,0,0.1)',
     width: '100%',
     maxWidth: '400px',
+    borderRadius: 15,
   },
   title: {
     textAlign: 'center',
@@ -123,6 +129,18 @@ const styles = {
     color: 'red',
     marginTop: '10px',
     textAlign: 'center',
+  },
+  link: {
+    color: '#0073b1',  
+    fontSize: '16px',
+    textDecoration: 'none',
+    fontWeight: 'bold',
+    transition: 'color 0.3s',
+  },
+  linkContainer: {
+    display: 'flex',
+    justifyContent: 'center',  
+    marginTop: '15px',
   },
 };
 

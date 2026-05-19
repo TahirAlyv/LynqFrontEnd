@@ -2,51 +2,90 @@ import React, { useState, useEffect } from 'react';
 import { searchUsers } from '../../services/searchApi';
 import SearchItem from '../../components/Search/SearchItem';
 import Navbar from '../../components/Layout/Navbar';
+import { RefreshContext } from '../../context/RefreshContext';
+import { SearchContext } from '../../context/SearchContext';
+import { useContext } from 'react'; 
 
 const SearchPage = () => {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
+ 
+const [results, setResults] = useState([]);
+const { query, setQuery } = useContext(SearchContext);
+const[slecetedFilter,setSelectedFilter] = useState('All');
+const [filtredResults, setFilteredResults] = useState(results);
+const { refreshData } = useContext(RefreshContext);
 
-  useEffect(() => {
+ 
+useEffect(() => {
+  setFilteredResults(
+    slecetedFilter === "All"
+      ? results
+      : results.filter((user) => user.role === slecetedFilter)
+  );
+}, [results, slecetedFilter]);
+
+console.log("Initial query:", query);
+
+useEffect(() => {
     const fetchResults = async () => {
-      if (query.trim().length === 0) {
+    if (query.trim().length === 0) {
         setResults([]);
         return;
-      }
+    }
+    
+        try {
+            const res = await searchUsers(query);
+            setResults(res);
+            console.log(res);
+          } catch (err) {
+            console.error('Search error:', err);
+          }
+        };
+    
+        const delayDebounce = setTimeout(fetchResults, 400);
+        return () => clearTimeout(delayDebounce);
+}, [refreshData,query]);
 
-      try {
-        const res = await searchUsers(query);
-        setResults(res);
-      } catch (err) {
-        console.error('Search error:', err);
-      }
-    };
-
-    const delayDebounce = setTimeout(fetchResults, 400);
-    return () => clearTimeout(delayDebounce);
-  }, [query]);
-
+ 
   return (
     <>
       <Navbar />
       <div style={styles.wrapper}>
-        <div style={styles.page}>
-          <h2 style={styles.title}>🔍 Search</h2>
-          <input
-            type="text"
-            placeholder="Search users..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            style={styles.input}
-          />
-          <div style={styles.results}>
-            {results.length > 0 ? (
-              results.map((user) => <SearchItem key={user.id} user={user} />)
-            ) : (
-              query && <p style={styles.noResult}>No results found.</p>
-            )}
+   
+          <div style={styles.filterConbainer}>
+            <p style={styles.titleFilter}>Filter by Type</p>
+            
+             <div style={styles.choiceText}>
+                <div style={styles.selectContainer} onClick={() => setSelectedFilter("All")} >
+                   {slecetedFilter === 'All' && <div style={styles.selected}/>}
+                  <p style={{ margin: 0,marginBottom: 20,cursor: "pointer" }}>All</p>
+                </div>
+                <div style={styles.selectContainer} onClick={() => setSelectedFilter("Employer")} >
+                  {slecetedFilter === 'Employer' && <div style={styles.selected}/>}
+                  <p style={{ margin: 0,marginBottom: 20,cursor: "pointer" }}>Employeer</p>
+                </div>
+                <div style={styles.selectContainer} onClick={() => setSelectedFilter("JobSeeker")}>
+                     {slecetedFilter === 'JobSeeker' && <div style={styles.selected}/>}
+                  <p style={{ margin: 0,marginBottom: 20,cursor: "pointer" }}> JobSeeker</p>
+                </div>
+             </div>
+         
           </div>
-        </div>
+        
+         <div style={styles.page}>
+             {filtredResults.length > 0 ? (
+              <div style={{ width: '90%', marginTop: 20, overflowY: 'auto', height: '620px' }}> 
+                {filtredResults.map((user) => (
+                  <SearchItem key={user.id} user={user}/>
+                ))}
+              </div>
+             ): 
+             (<></>)}
+ 
+         </div>
+
+
+
+     
       </div>
     </>
   );
@@ -57,51 +96,93 @@ const styles = {
       display: 'flex',
       justifyContent: 'center',
       padding: '0 20px',
-      marginTop: '20px',
-      minHeight: 'calc(100vh - 120px)', // navbar + üst boşluk için
-      backgroundColor: '#f5f5f5'
+      minHeight: 'calc(100vh - 120px)',  
+      backgroundColor: '#f5f5f5',
+      height: '100vh',
+ 
     },
+
     page: {
-      width: '50%',
-      backgroundColor: '#fff',
-      borderRadius: '30px',
-      padding: '40px 30px',
-      boxShadow: '0 0 12px rgba(0,0,0,0.08)',
-      border: '2px solid #ccc',
-      textAlign: 'center',
-      minHeight: '500px',
+      marginTop: 20,
+      width: '650px',
+      height: '680px',
+      backgroundColor: '#ffffffff',
+      borderRadius: 20,
+      boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
       display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'flex-start'
+      justifyContent: 'center',
+      marginRight:  "150px",
+ 
+ 
     },
-    title: {
-      fontSize: '24px',
-      marginBottom: '20px',
+
+    filterConbainer:{
+      width: '180px',
+      height: '200px',
+      backgroundColor: '#ffffffff',
+      marginTop: 30,
+      marginRight: 40,
+      borderRadius: 10,
+      boxShadow: '0px 4px 10px rgba(0, 0, 0, 0.1)',
+      position: 'realative',
+ 
+     
+    },
+
+    titleFilter: {
+      fontSize: 18,
+      marginBottom: 10,
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      textAlign: 'center',
+      fontWeight: "600",
+      color: '#0073b1',
+     
+    },
+    choiceText:{
+      fontSize: 16,
+      marginBottom: 8,
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      marginLeft: 35,
+      marginTop: 25,
+      width: "100%",
+ 
+    },
+
+    selected: {
+      width: "10px",
+      height: "10px",
+      borderRadius: "10px",
+      backgroundColor: 'green',
+      marginBottom: 16,
+      right: 190,
+      position: 'absolute',
+ 
+    },
+
+    selectContainer: {
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: '10px'
-    },
-    input: {
-      width: '96%',
-      padding: '12px 16px',
-      borderRadius: '10px',
-      border: '1px solid #ccc',
-      fontSize: '16px',
-      marginBottom: '20px'
-    },
-    results: {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '12px',
-      flex: 1
-    },
-    noResult: {
-      color: '#888',
-      marginTop: '40px'
+      width: '100%',
+      position: 'relative',
+     
+     
+
     }
+   
+ 
+   
   };
   
   
 
 export default SearchPage;
+
+
+
+
+
+
+
+
+
+ 

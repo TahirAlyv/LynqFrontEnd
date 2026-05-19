@@ -1,44 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Navbar from '../components/Layout/Navbar';
- 
+import defaultAvatar from '../assets/default-avatar.png';
+import { useSelector } from 'react-redux';
 
 const HomePage = () => {
+  const user = useSelector(state => state.user.user);
+  const [showPostForm, setShowPostForm] = useState(false);
+
+  console.log("Logged in user:", user);
   return (
     <div>
-     <Navbar/>
-      <div style={styles.wrapper}>
-        <div style={styles.feed}>
-          <h2>📝 Latest Posts</h2>
+      <Navbar />
+        <div style={styles.mainContainer}>
+            <p>Please log in as an Employer to create posts.</p>
         </div>
-        <div style={styles.sidebar}>
-          <h4>💼 Recommended Companies</h4>
-          <p>(Coming soon...)</p>
-        </div>
-      </div>
     </div>
   );
 };
 
 const styles = {
-  wrapper: {
-    display: 'flex',
-    padding: '20px',
-    gap: '20px',
-    backgroundColor: '#f4f4f4',
-    minHeight: '100vh',
-  },
-  feed: {
-    flex: 2,
-    backgroundColor: '#fff',
-    padding: '20px',
-    borderRadius: '8px',
-  },
-  sidebar: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: '20px',
-    borderRadius: '8px',
-  },
+ 
+mainContainer: {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'flex-start',
+  backgroundColor: '#f0f0f0ff',
+  minHeight: '100vh',
+  width: '100%',
+  margin: 0, 
+  paddingTop: 0  
+}
+
+  
 };
 
 export default HomePage;
