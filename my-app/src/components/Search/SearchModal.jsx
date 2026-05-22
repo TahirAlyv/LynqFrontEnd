@@ -1,102 +1,177 @@
-import { searchUsers } from "../../services/searchApi";
-import React, { useState, useEffect } from "react";
-import search from "../../../src/assets/Search.png";
-import defaultAvatar from "../../assets/default-avatar.png";
-import { useNavigate } from "react-router-dom";
-import { SearchContext } from "../../context/SearchContext";
-import { useContext } from "react";
-import { useLocation } from "react-router-dom";
-export default function SearchModal() {
-  const [results, setResults] = useState([]);
-  const { query, setQuery } = useContext(SearchContext);
-  const [shoModal, setShowModal] = useState(false);
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
+import searchIcon from "../../assets/Search.png";
+import defaultAvatar from "../../assets/default-avatar.png";
+import { SearchContext } from "../../context/SearchContext";
+import { searchUsers } from "../../services/searchApi";
+import api from "../../services/api";
+
+const API_ROOT = (api.defaults.baseURL || "").replace(/\/api\/?$/, "");
+
+export default function SearchModal() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const wrapperRef = useRef(null);
+
+  const { query, setQuery } = useContext(SearchContext);
+
+  const [results, setResults] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+
+  const getImageUrl = (path) => {
+    if (!path) return defaultAvatar;
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    return `${API_ROOT}/${path.replace(/^\/+/, "")}`;
+  };
+
+  const goToSearch = () => {
+    const cleanQuery = query.trim();
+
+    if (!cleanQuery) return;
+
+    setShowModal(false);
+    navigate(`/search?query=${encodeURIComponent(cleanQuery)}`);
+  };
+
+  const goToProfile = (username) => {
+    if (!username) return;
+
+    setShowModal(false);
+    navigate(`/profile/${username}`);
+  };
+
   useEffect(() => {
-    debugger;
+    const handleClickOutside = (event) => {
+      if (!wrapperRef.current) return;
+
+      if (!wrapperRef.current.contains(event.target)) {
+        setShowModal(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchResults = async () => {
-      if (query.trim().length === 0) {
+      const cleanQuery = query.trim();
+
+      if (!cleanQuery || location.pathname === "/search") {
         setResults([]);
         return;
       }
 
       try {
-        const res = await searchUsers(query);
+        const res = await searchUsers(cleanQuery);
         setResults(res);
-        console.log(res);
       } catch (err) {
-        console.error("Search error:", err);
+        console.error("Search preview error:", err);
+        setResults([]);
       }
     };
 
-    const delayDebounce = setTimeout(fetchResults, 400);
-    return () => clearTimeout(delayDebounce);
-  }, [query]);
+    const delayDebounce = setTimeout(fetchResults, 350);
 
-  const goToSearch = () => {
-    navigate("/search");
-  };
+    return () => clearTimeout(delayDebounce);
+  }, [query, location.pathname]);
 
   return (
-    <div>
-      <div style={location.pathname !== "/search" ? styles.inputContainer : {...styles.inputContainer, width: 380,height: 38}} >
-        <img
-          src={search}
-          style={{ width: 20, height: 20, marginLeft: 10 }}
-          alt="search"
-        />
+    <div style={styles.wrapper} ref={wrapperRef}>
+      <div style={styles.inputContainer}>
+        <img src={searchIcon} style={styles.icon} alt="search" />
+
         <input
           placeholder="Search"
-          style={ location.pathname !== "/search" ? styles.input : {...styles.input, width: 300,height: "90%"}}
+          style={styles.input}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onClick={() => {
+          onChange={(e) => {
+            setQuery(e.target.value);
+
             if (location.pathname !== "/search") {
               setShowModal(true);
+            }
+          }}
+          onFocus={() => {
+            if (location.pathname !== "/search" && query.trim()) {
+              setShowModal(true);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              goToSearch();
+            }
+
+            if (e.key === "Escape") {
+              setShowModal(false);
             }
           }}
         />
       </div>
 
-      {shoModal && (
+      {showModal && location.pathname !== "/search" && (
         <div style={styles.modalOverlay}>
-          <div style={styles.itemContaoiner}>
-            {results.length > 0 ? (
-              <div>
-                {results.slice(0, 4).map((user) => (
-                  <div key={user.username}>
-                    <div style={styles.itemContainer}>
+          <div style={styles.previewList}>
+            {query.trim().length === 0 ? (
+              <p style={styles.emptyText}>Start typing to search.</p>
+            ) : results.length > 0 ? (
+              results.slice(0, 4).map((user) => {
+                const isEmployer =
+                  user.userType === "Employer" ||
+                  user.UserType === "Employer" ||
+                  user.role === "Employer" ||
+                  user.Role === "Employer";
+
+                return (
+                  <div key={user.id || user.username}>
+                    <button
+                      type="button"
+                      style={styles.itemButton}
+                      onClick={() => goToProfile(user.username)}
+                    >
                       <img
-                        src={user.profileImage || defaultAvatar}
+                        src={getImageUrl(user.profileImage)}
                         alt=""
-                        style={styles.avatar}
+                        style={{
+                          ...styles.avatar,
+                          borderRadius: isEmployer ? 8 : "50%",
+                        }}
                       />
-                      <p>{user.username}</p>
-                    </div>
+
+                      <div style={styles.textBox}>
+                        <span style={styles.name}>
+                          {user.fullName || user.name || user.username}
+                        </span>
+
+                        <span style={styles.subText}>
+                          {user.currentPosition ||
+                            user.bio ||
+                            user.role ||
+                            user.userType ||
+                            "Profile"}
+                        </span>
+                      </div>
+                    </button>
+
                     <div style={styles.line} />
                   </div>
-                ))}
-              </div>
+                );
+              })
             ) : (
-              <p
-                style={{
-                  textAlign: "center",
-                  marginTop: 50,
-                  fontSize: 16,
-                  fontWeight: 500,
-                  color: "#222222",
-                }}
-              >
-                No results found.
-              </p>
+              <p style={styles.emptyText}>No results found.</p>
             )}
           </div>
 
-          <p style={styles.more} onClick={() => goToSearch()}>
-            See More
-          </p>
+          {query.trim() && (
+            <button type="button" style={styles.more} onClick={goToSearch}>
+              See all results
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -104,71 +179,122 @@ export default function SearchModal() {
 }
 
 const styles = {
-  modalOverlay: {
-    position: "absolute",
-    top: 48,
-    left: 133,
-    width: "220px",
-    height: "280px",
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    borderRadius: "10px",
-  },
-
-  more: {
-    fontSize: "14px",
-    fontWeight: "500",
-    color: "#0073b1",
-    textAlign: "center",
-    margin: 0,
-    marginTop: "8px",
-    cursor: "pointer",
+  wrapper: {
+    position: "relative",
   },
 
   inputContainer: {
     display: "flex",
     width: 230,
-    height: 30,
+    height: 34,
     borderRadius: 20,
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: "#222222",
+    border: "1px solid #222",
     alignItems: "center",
+    backgroundColor: "#fff",
   },
- 
+
+  icon: {
+    width: 18,
+    height: 18,
+    marginLeft: 10,
+    opacity: 0.7,
+  },
+
   input: {
     flex: 1,
     height: "90%",
     borderRadius: 20,
-    marginLeft: "5px",
+    marginLeft: 6,
     border: "none",
     outline: "none",
+    fontSize: 14,
+    backgroundColor: "transparent",
   },
 
-  itemContaoiner: {
-    backgroundColor: "rgba(255, 255, 255, 0.94)",
-    height: "200px",
-    padding: "10px",
-    position: "relative",
-    width: "91%",
-    height: "230px",
+  modalOverlay: {
+    position: "absolute",
+    top: 42,
+    left: 0,
+    width: 320,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    border: "1px solid #ddd",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.16)",
+    zIndex: 9999,
+    overflow: "hidden",
+  },
+
+  previewList: {
+    padding: 8,
+    maxHeight: 280,
+    overflowY: "auto",
+  },
+
+  itemButton: {
+    width: "100%",
+    border: "none",
+    backgroundColor: "transparent",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 8px",
+    cursor: "pointer",
+    textAlign: "left",
   },
 
   avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: "50%",
-    marginRight: 12,
+    width: 38,
+    height: 38,
+    objectFit: "cover",
+    backgroundColor: "#eef3f8",
   },
 
-  itemContainer: {
+  textBox: {
     display: "flex",
-    alignItems: "center",
+    flexDirection: "column",
+    minWidth: 0,
+  },
+
+  name: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#111",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  subText: {
+    fontSize: 12,
+    color: "#666",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   line: {
-    height: "1px",
+    height: 1,
     backgroundColor: "#eee",
+    margin: "2px 0",
+  },
+
+  more: {
     width: "100%",
-    marginBottom: "10px",
+    border: "none",
+    borderTop: "1px solid #eee",
+    backgroundColor: "#fff",
+    padding: "11px 12px",
+    color: "#0a66c2",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  emptyText: {
+    textAlign: "center",
+    margin: "28px 0",
+    fontSize: 14,
+    fontWeight: 500,
+    color: "#666",
   },
 };

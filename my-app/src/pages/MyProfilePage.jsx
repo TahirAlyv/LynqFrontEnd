@@ -23,18 +23,21 @@ const MyProfilePage = ({ likeConnection }) => {
     return <div style={{ textAlign: "center", marginTop: 50 }}>Loading...</div>;
   }
 
-  if (user.role === "Employer") {
-    return (
-      <EmployerProfileView
-        user={user}
-        setUser={setUser}
-        isOwner={true}
-        readOnly={false}
-        likeConnection={likeConnection}
-      />
-    );
-  }
+const isEmployer =
+  user?.userType === "Employer" ||
+  user?.role === "Employer";
 
+if (isEmployer) {
+  return (
+    <EmployerProfileView
+      user={user}
+      setUser={setUser}
+      isOwner={true}
+      readOnly={false}
+      likeConnection={likeConnection}
+    />
+  );
+}
   return (
     <ProfileView
       user={user}

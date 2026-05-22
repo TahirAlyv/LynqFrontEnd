@@ -9,6 +9,7 @@ import pendingConnect from "../../assets/pendingConnect.png";
 import SendMessageIcon from "../../assets/sendMessageIcon.png";
 import pencil from "../../assets/pencil.png";
 import backgroundImage from "../../assets/backgroundImage.png";
+import { useSelector } from "react-redux";
 
 export default function ProfileCard({
   user,
@@ -25,30 +26,39 @@ export default function ProfileCard({
   onDeleteBackgroundImage,
   menuRef,
 }) {
+  const navigate = useNavigate();
+
+  const currentUser = useSelector((state) => state.user.user);
+
+  const currentUserIsEmployer =
+    currentUser?.userType === "Employer" ||
+    currentUser?.UserType === "Employer" ||
+    currentUser?.role === "Employer" ||
+    currentUser?.Role === "Employer";
+
   const [connectHover, setConnectHover] = useState(false);
   const [messageHover, setMessageHover] = useState(false);
   const [editHover, setEditHover] = useState(false);
   const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
 
-  const API_BASE_URL = "https://localhost:7257";
-
-  const navigate = useNavigate();
-
   const [connectionStatus, setConnectionStatus] = useState("none");
   const [connectionRequestId, setConnectionRequestId] = useState(null);
   const [connectionLoading, setConnectionLoading] = useState(false);
+
+  const API_BASE_URL = "https://localhost:7257";
 
   const profileUsername = user?.basicInfo?.username;
 
   const hasProfileImage = !!user?.basicInfo?.profileImage;
   const hasBackgroundImage = !!user?.basicInfo?.backgroundImage;
 
+  const canShowConnectionActions = !isOwner && !currentUserIsEmployer;
+
   const getImageUrl = (path) => {
     if (!path) return "";
     if (path.startsWith("http://") || path.startsWith("https://")) return path;
     return `${API_BASE_URL}/${path.replace(/^\/+/, "")}`;
   };
-  
 
   const normalizeConnectionStatus = (payload) => {
     const data = payload?.data || payload || {};
@@ -60,7 +70,7 @@ export default function ProfileCard({
   };
 
   const fetchConnectionStatus = async () => {
-    if (!profileUsername || isOwner) return;
+    if (!profileUsername || isOwner || currentUserIsEmployer) return;
 
     try {
       const res = await api.get(`/Connection/status/${profileUsername}`);
@@ -72,27 +82,26 @@ export default function ProfileCard({
       console.error("Connection status fetch failed:", err);
     }
   };
- 
+
   useEffect(() => {
     fetchConnectionStatus();
-  }, [profileUsername, isOwner]);
-
+  }, [profileUsername, isOwner, currentUserIsEmployer]);
 
   useEffect(() => {
-  if (!isRemoveModalOpen) return;
+    if (!isRemoveModalOpen) return;
 
-  const originalOverflow = document.body.style.overflow;
-  document.body.style.overflow = "hidden";
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
-  return () => {
-    document.body.style.overflow = originalOverflow;
-  };
-}, [isRemoveModalOpen]);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isRemoveModalOpen]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
 
-    if (!token || !profileUsername || isOwner) return;
+    if (!token || !profileUsername || isOwner || currentUserIsEmployer) return;
 
     const sameUser = (targetUser) => {
       return (
@@ -198,7 +207,7 @@ export default function ProfileCard({
     return () => {
       connection.stop();
     };
-  }, [profileUsername, isOwner]);
+  }, [profileUsername, isOwner, currentUserIsEmployer]);
 
   const getConnectionButtonText = () => {
     if (connectionLoading) return "Loading...";
@@ -248,7 +257,7 @@ export default function ProfileCard({
   };
 
   const handleConnectionClick = async () => {
-    if (!profileUsername || connectionLoading) {
+    if (!profileUsername || connectionLoading || currentUserIsEmployer) {
       return;
     }
 
@@ -301,7 +310,7 @@ export default function ProfileCard({
   };
 
   const handleConfirmRemoveConnection = async () => {
-    if (!profileUsername || connectionLoading) {
+    if (!profileUsername || connectionLoading || currentUserIsEmployer) {
       return;
     }
 
@@ -322,6 +331,8 @@ export default function ProfileCard({
   };
 
   const handleMessageClick = () => {
+    if (currentUserIsEmployer) return;
+
     if (connectionStatus !== "connected") {
       showToast?.("You can message only connected users.", "error");
       return;
@@ -345,22 +356,24 @@ export default function ProfileCard({
     <>
       <div style={styles.card}>
         <div style={coverStyle}>
-          <div
-            style={styles.backgroundActionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenBackgroundImageMenu?.();
-            }}
-            title="Background"
-          >
-            <img
-              style={{ width: 16, height: 16 }}
-              src={backgroundImage}
-              alt="edit"
-            />
-          </div>
+          {isOwner && (
+            <div
+              style={styles.backgroundActionButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenBackgroundImageMenu?.();
+              }}
+              title="Background"
+            >
+              <img
+                style={{ width: 16, height: 16 }}
+                src={backgroundImage}
+                alt="edit"
+              />
+            </div>
+          )}
 
-          {imageMenu?.open && imageMenu?.type === "background" && (
+          {isOwner && imageMenu?.open && imageMenu?.type === "background" && (
             <div ref={menuRef} style={styles.coverMenu}>
               {!hasBackgroundImage ? (
                 <div style={styles.menuItem} onClick={onUploadBackgroundImage}>
@@ -394,22 +407,24 @@ export default function ProfileCard({
             alt="profile"
           />
 
-          <div
-            style={styles.avatarActionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenProfileImageMenu?.();
-            }}
-            title="Profile image"
-          >
-            {hasProfileImage ? (
-              <span style={{ fontSize: 20 }}>✎</span>
-            ) : (
-              <span style={{ fontSize: 32, translate: "0 -3px" }}>+</span>
-            )}
-          </div>
+          {isOwner && (
+            <div
+              style={styles.avatarActionButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenProfileImageMenu?.();
+              }}
+              title="Profile image"
+            >
+              {hasProfileImage ? (
+                <span style={{ fontSize: 20 }}>✎</span>
+              ) : (
+                <span style={{ fontSize: 32, translate: "0 -3px" }}>+</span>
+              )}
+            </div>
+          )}
 
-          {imageMenu?.open && imageMenu?.type === "profile" && (
+          {isOwner && imageMenu?.open && imageMenu?.type === "profile" && (
             <div ref={menuRef} style={styles.avatarMenu}>
               {!hasProfileImage ? (
                 <div style={styles.menuItem} onClick={onUploadProfileImage}>
@@ -432,23 +447,25 @@ export default function ProfileCard({
           )}
         </div>
 
-        <img
-          src={pencil}
-          alt="edit"
-          style={{
-            ...styles.editIcon,
-            backgroundColor: editHover ? "rgba(0,0,0,0.06)" : "transparent",
-            transform: editHover
-              ? "translateY(-1px) scale(1.03)"
-              : "translateY(0) scale(1)",
-            boxShadow: editHover ? "0 2px 8px rgba(0,0,0,0.12)" : "none",
-            transition:
-              "background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease",
-          }}
-          onMouseEnter={() => setEditHover(true)}
-          onMouseLeave={() => setEditHover(false)}
-          onClick={() => onEdit?.()}
-        />
+        {isOwner && (
+          <img
+            src={pencil}
+            alt="edit"
+            style={{
+              ...styles.editIcon,
+              backgroundColor: editHover ? "rgba(0,0,0,0.06)" : "transparent",
+              transform: editHover
+                ? "translateY(-1px) scale(1.03)"
+                : "translateY(0) scale(1)",
+              boxShadow: editHover ? "0 2px 8px rgba(0,0,0,0.12)" : "none",
+              transition:
+                "background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease",
+            }}
+            onMouseEnter={() => setEditHover(true)}
+            onMouseLeave={() => setEditHover(false)}
+            onClick={() => onEdit?.()}
+          />
+        )}
 
         <div style={styles.info}>
           <div style={styles.nameBlock}>
@@ -460,7 +477,7 @@ export default function ProfileCard({
             <div style={styles.username}>@{user?.basicInfo?.username}</div>
           </div>
 
-          {!isOwner && (
+          {canShowConnectionActions && (
             <div style={styles.actionsRow}>
               <div
                 style={{
@@ -530,7 +547,7 @@ export default function ProfileCard({
         </div>
       </div>
 
-      {isRemoveModalOpen && (
+      {isRemoveModalOpen && canShowConnectionActions && (
         <div
           style={styles.removeModalOverlay}
           onClick={() => setIsRemoveModalOpen(false)}
@@ -650,11 +667,9 @@ const styles = {
     borderRadius: "50%",
     backgroundColor: "#0a66c2",
     color: "#fff",
-
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-
     cursor: "pointer",
     boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
     fontSize: 16,

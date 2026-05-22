@@ -13,6 +13,7 @@ const API_BASE_URL = "https://localhost:7257";
 const PostItem = ({
   post,
   showActions = false,
+  isEmployer = false,
   onPostUpdated,
   onPostDeleted,
   showToast,
@@ -189,7 +190,10 @@ const PostItem = ({
             <img
               src={profileImageSrc}
               alt={username || "User"}
-              style={styles.avatar}
+              style={{
+                ...styles.avatar,
+                borderRadius: isEmployer ? "8px" : "50%",
+              }}
             />
 
             <div>

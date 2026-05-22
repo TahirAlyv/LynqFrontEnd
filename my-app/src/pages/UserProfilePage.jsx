@@ -66,17 +66,21 @@ const UserProfilePage = ({ likeConnection }) => {
     );
   }
 
-  if (user.role === "Employer") {
-    return (
-      <EmployerProfileView
-        user={user}
-        setUser={setUser}
-        isOwner={isOwner}
-        readOnly={!isOwner}
-        likeConnection={likeConnection}
-      />
-    );
-  }
+const isEmployer =
+  user?.userType === "Employer" ||
+  user?.role === "Employer";
+
+if (isEmployer) {
+  return (
+    <EmployerProfileView
+      user={user}
+      setUser={setUser}
+      isOwner={isOwner}
+      readOnly={!isOwner}
+      likeConnection={likeConnection}
+    />
+  );
+}
 
   return (
     <ProfileView

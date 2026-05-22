@@ -10,7 +10,10 @@ import {loginSuccess,authCheckDone} from './store/userSlice';
 import api from './services/api';
 import NotificationPage from './pages/NotificationPage';
 import * as signalR from '@microsoft/signalr';
-import { addNotification } from './store/notificationSlice'
+import {
+  addNotification,
+  setNotifications,
+} from "./store/notificationSlice";
 import MessagePage from './components/Message/MessagePage';
 import { incrementUnread } from './store/messageSlice';
 import { RefreshProvider } from './context/RefreshContext';
@@ -25,7 +28,9 @@ import { useState } from 'react';
 import ExperienceListPage from './pages/profile/ExperienceListPage';
 import ActivityListPage from './pages/ActivityListPage';
 import NetworkPage from "./pages/NetworkPage";
- 
+import JobsPage from "./pages/JobsPage";
+import AdminPage from "./pages/AdminPage";
+
 function App() {
   const dispatch = useDispatch();
   const token = localStorage.getItem('token');
@@ -54,58 +59,92 @@ useEffect(() => {
 console.log("user control: ",user)
 
 useEffect(() => {
+  let connection;
+
   const connectSignalR = async () => {
     try {
- 
-      if (token) {
-        const connection = new signalR.HubConnectionBuilder()
-          .withUrl("https://localhost:7257/notificationhub", {
-            accessTokenFactory: () => token
-          })
-          .withAutomaticReconnect()
-          .build();
+      if (!token) return;
 
-        connection.on("ReceiveNotification", (data) => {
-          dispatch(addNotification(data));
-        });
+      try {
+        const res = await api.get("/Notifications/notifications");
 
-        await connection.start();
-        console.log("✅ SignalR connected");
+        const list = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray(res.data?.data)
+          ? res.data.data
+          : Array.isArray(res.data?.Data)
+          ? res.data.Data
+          : [];
+
+        dispatch(setNotifications(list));
+      } catch (err) {
+        console.error("Failed to fetch initial notifications:", err);
       }
+
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl("https://localhost:7257/notificationhub", {
+          accessTokenFactory: () => localStorage.getItem("token"),
+        })
+        .withAutomaticReconnect()
+        .build();
+
+      connection.on("ReceiveNotification", (data) => {
+        dispatch(addNotification(data));
+      });
+
+      await connection.start();
+      console.log("NotificationHub connected in App.jsx");
     } catch (err) {
-      console.error("❌ SignalR connection error:", err);
+      console.error("NotificationHub connection error:", err);
     }
   };
 
   connectSignalR();
-}, []);
+
+  return () => {
+    connection?.stop();
+  };
+}, [token, dispatch]);
 
 
 useEffect(() => {
-  const connectSignalR = async () => {
+  let connection;
+
+  const connectChatHub = async () => {
     try {
-      if (token) {
-        const connection = new signalR.HubConnectionBuilder()
-          .withUrl("https://localhost:7257/chathub", {
-            accessTokenFactory: () => token
-          })
-          .withAutomaticReconnect()
-          .build();
+      if (!token) return;
 
-        connection.on("ReceiveMessage", () => {
-          console.log("Yeni mesaj geldi 🔥");
-          dispatch(incrementUnread());
-        });
+      connection = new signalR.HubConnectionBuilder()
+        .withUrl("https://localhost:7257/chathub", {
+          accessTokenFactory: () => localStorage.getItem("token"),
+        })
+        .withAutomaticReconnect()
+        .build();
 
-        await connection.start();
-        console.log("✅ SignalR connected");
-      }
+      connection.on("ReceiveMessage", (message) => {
+        const senderUsername =
+          message?.sender ||
+          message?.Sender ||
+          message?.senderUsername ||
+          message?.SenderUsername;
+
+        if (!senderUsername) return;
+
+        dispatch(incrementUnread(senderUsername));
+      });
+
+      await connection.start();
+      console.log("ChatHub connected in App.jsx");
     } catch (err) {
-      console.error("❌ SignalR connection error:", err);
+      console.error("ChatHub connection error in App.jsx:", err);
     }
   };
 
-  connectSignalR();
+  connectChatHub();
+
+  return () => {
+    connection?.stop();
+  };
 }, [token, dispatch]);
 
  
@@ -148,7 +187,16 @@ if (authLoading) {
            <Route path="/" element={token && user ? <Navigate to="/home" /> :  <LoginForm />} />
               <Route path="/login" element={token && user ? <Navigate to="/home" /> : <LoginForm />} />
               <Route path="/register" element={token && user ? <Navigate to="/home" /> : <RegisterForm />} />
-              <Route path="/home" element={token && user ? <HomePage /> : <Navigate to="/" />} />
+              <Route
+                 path="/home"
+                 element={
+                   token && user ? (
+                     <HomePage likeConnection={likeConnection} />
+                   ) : (
+                     <Navigate to="/" />
+                   )
+                 }
+               />
               <Route path="/search" element={token && user ? <SearchPage /> : <Navigate to="/" />} />
               <Route path="/network" element={token && user ? <NetworkPage /> : <Navigate to="/" />} />
 
@@ -187,6 +235,17 @@ if (authLoading) {
                 path="/profile/:username/activity"
                 element={token && user ? <ActivityListPage likeConnection={likeConnection}/> : <Navigate to="/" />}
               />
+           <Route
+              path="/jobs"
+              element={token && user ? <JobsPage /> : <Navigate to="/" />}
+            />
+
+            <Route
+              path="/admin"
+              element={
+                token && user ? <AdminPage /> : <Navigate to="/" />
+              }
+            />
             </Routes>
           </SearchProvider>
     </RefreshProvider>

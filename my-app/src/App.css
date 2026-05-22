@@ -17,3 +17,16 @@ body {
   text-decoration: underline;
   opacity: 0.75;
 }
+
+.navbar-icon-link:hover .navbar-icon {
+  opacity: 1 !important;
+  transform: translateY(-1px);
+}
+
+.navbar-icon-active {
+  opacity: 1 !important;
+}
+
+.navbar-profile-avatar:hover {
+  opacity: 1 !important;
+}

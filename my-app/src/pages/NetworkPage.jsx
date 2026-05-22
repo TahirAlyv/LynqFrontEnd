@@ -1,72 +1,124 @@
 import React, { useEffect, useState } from "react";
-import * as signalR from "@microsoft/signalr";
-import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import * as signalR from "@microsoft/signalr";
+
 import Navbar from "../components/Layout/Navbar";
 import api from "../services/api";
-import Toast from "../components/UI/Toast";
-import {
-  setPendingReceivedCount,
-  clearConnectionUpdateCount,
-} from "../store/connectionSlice";
+import defaultAvatar from "../assets/default-avatar.png";
 
-const API_BASE_URL = "https://localhost:7257";
+const API_ROOT = (api.defaults.baseURL || "https://localhost:7257/api").replace(
+  /\/api\/?$/,
+  ""
+);
 
-const NetworkPage = () => {
-  const dispatch = useDispatch();
+export default function NetworkPage() {
   const navigate = useNavigate();
+  const currentUser = useSelector((state) => state.user.user);
+
+  const currentUserIsEmployer =
+    currentUser?.userType === "Employer" ||
+    currentUser?.UserType === "Employer" ||
+    currentUser?.role === "Employer" ||
+    currentUser?.Role === "Employer";
 
   const [activeTab, setActiveTab] = useState("received");
+
   const [receivedRequests, setReceivedRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
   const [connections, setConnections] = useState([]);
-  const [loading, setLoading] = useState(true);
 
-  const [isRemoveModalOpen, setIsRemoveModalOpen] = useState(false);
-  const [selectedConnection, setSelectedConnection] = useState(null);
-  const [removing, setRemoving] = useState(false);
+  const [followers, setFollowers] = useState([]);
 
-  const [toast, setToast] = useState({
-    show: false,
-    message: "",
-    type: "success",
-  });
+  const [loading, setLoading] = useState(false);
+  const [followersLoading, setFollowersLoading] = useState(false);
+
+  const [removeTarget, setRemoveTarget] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
-    setToast({ show: true, message, type });
+    setToast({ message, type });
 
     setTimeout(() => {
-      setToast({ show: false, message: "", type: "success" });
-    }, 3000);
+      setToast(null);
+    }, 2500);
   };
 
-  const getResponseData = (res) => {
-    return res?.data?.data ?? res?.data?.Data ?? res?.data ?? null;
-  };
-
-  const getDataArray = (res) => {
-    const data = getResponseData(res);
-
-    if (Array.isArray(data)) return data;
-
+  const getResponseArray = (res) => {
+    if (Array.isArray(res?.data)) return res.data;
+    if (Array.isArray(res?.data?.data)) return res.data.data;
+    if (Array.isArray(res?.data?.Data)) return res.data.Data;
     return [];
   };
 
-  const getItemId = (item) => {
-    return item?.id ?? item?.Id ?? item?.userId ?? item?.UserId ?? null;
+  const getImageUrl = (path) => {
+    if (!path) return defaultAvatar;
+    if (path.startsWith("http://") || path.startsWith("https://")) return path;
+    return `${API_ROOT}/${path.replace(/^\/+/, "")}`;
   };
 
-  const getUsername = (item) => {
-    return item?.username ?? item?.Username ?? null;
+  const getUserId = (user) => {
+    return user?.id || user?.Id || user?.userId || user?.UserId || null;
   };
 
-  const sameItem = (a, b) => {
-    const aId = getItemId(a);
-    const bId = getItemId(b);
+  const getUsername = (user) => {
+    return user?.username || user?.Username || user?.userName || user?.UserName;
+  };
 
-    if (aId && bId) {
-      return String(aId) === String(bId);
-    }
+  const getFullName = (user) => {
+    return (
+      user?.fullName ||
+      user?.FullName ||
+      user?.name ||
+      user?.Name ||
+      getUsername(user) ||
+      "User"
+    );
+  };
+
+  const getHeadline = (user) => {
+    return (
+      user?.currentPosition ||
+      user?.CurrentPosition ||
+      user?.headline ||
+      user?.Headline ||
+      "Profile"
+    );
+  };
+
+  const getLocation = (user) => {
+    return user?.location || user?.Location || "";
+  };
+
+  const getProfileImage = (user) => {
+    return (
+      user?.profileImage ||
+      user?.ProfileImage ||
+      user?.profileImageUrl ||
+      user?.ProfileImageUrl ||
+      user?.userProfileUrl ||
+      user?.UserProfileUrl ||
+      null
+    );
+  };
+
+  const getRequestId = (request) => {
+    return request?.id || request?.Id || request?.requestId || request?.RequestId;
+  };
+
+  const getSender = (request) => {
+    return request?.sender || request?.Sender || {};
+  };
+
+  const getReceiver = (request) => {
+    return request?.receiver || request?.Receiver || {};
+  };
+
+  const sameUser = (a, b) => {
+    const aId = getUserId(a);
+    const bId = getUserId(b);
+
+    if (aId && bId) return String(aId) === String(bId);
 
     const aUsername = getUsername(a);
     const bUsername = getUsername(b);
@@ -78,36 +130,32 @@ const NetworkPage = () => {
     return false;
   };
 
-  const addUniqueById = (list, item) => {
-    if (!item) return list;
-
-    const exists = list.some((x) => sameItem(x, item));
-    if (exists) return list;
-
-    return [item, ...list];
-  };
-
-  const removeByRequestId = (list, request) => {
-    const requestId =
-      typeof request === "object" ? getItemId(request) : request;
-
-    if (!requestId) return list;
-
-    return list.filter((x) => String(getItemId(x)) !== String(requestId));
-  };
-
-  const removeByUser = (list, user) => {
+  const addUniqueUser = (list, user) => {
     if (!user) return list;
 
-    return list.filter((x) => !sameItem(x, user));
+    const exists = list.some((item) => sameUser(item, user));
+    if (exists) return list;
+
+    return [user, ...list];
   };
 
-  const getRequestSender = (request) => {
-    return request?.sender ?? request?.Sender ?? null;
+  const removeUser = (list, user) => {
+    return list.filter((item) => !sameUser(item, user));
   };
 
-  const getRequestReceiver = (request) => {
-    return request?.receiver ?? request?.Receiver ?? null;
+  const addUniqueRequest = (list, request) => {
+    const requestId = getRequestId(request);
+
+    if (!requestId) return [request, ...list];
+
+    const exists = list.some((item) => Number(getRequestId(item)) === Number(requestId));
+    if (exists) return list;
+
+    return [request, ...list];
+  };
+
+  const removeRequestById = (list, requestId) => {
+    return list.filter((item) => Number(getRequestId(item)) !== Number(requestId));
   };
 
   const parseUtcDate = (dateValue) => {
@@ -115,36 +163,13 @@ const NetworkPage = () => {
 
     if (dateValue instanceof Date) return dateValue;
 
-    if (typeof dateValue !== "string") {
-      return new Date(dateValue);
+    const value = String(dateValue);
+
+    if (value.endsWith("Z") || value.includes("+")) {
+      return new Date(value);
     }
 
-    const hasTimezone =
-      dateValue.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(dateValue);
-
-    return new Date(hasTimezone ? dateValue : `${dateValue}Z`);
-  };
-
-  const getDateValue = (item, type) => {
-    if (!item) return null;
-
-    if (type === "connections") {
-      return item.connectedAt ?? item.ConnectedAt ?? null;
-    }
-
-    if (type === "received" || type === "sent") {
-      return item.createdAt ?? item.CreatedAt ?? null;
-    }
-
-    return (
-      item.createdAt ??
-      item.CreatedAt ??
-      item.respondedAt ??
-      item.RespondedAt ??
-      item.connectedAt ??
-      item.ConnectedAt ??
-      null
-    );
+    return new Date(`${value}Z`);
   };
 
   const formatTimeAgo = (dateValue) => {
@@ -152,78 +177,53 @@ const NetworkPage = () => {
 
     if (!date || Number.isNaN(date.getTime())) return "";
 
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-
-    if (diffMs < 0) return "now";
-
+    const diffMs = Date.now() - date.getTime();
     const diffSeconds = Math.floor(diffMs / 1000);
-    const diffMinutes = Math.floor(diffSeconds / 60);
-    const diffHours = Math.floor(diffMinutes / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    const diffWeeks = Math.floor(diffDays / 7);
-    const diffMonths = Math.floor(diffDays / 30);
-    const diffYears = Math.floor(diffDays / 365);
 
     if (diffSeconds < 60) return "now";
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
     if (diffMinutes < 60) return `${diffMinutes} min ago`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
     if (diffHours < 24) return `${diffHours} h ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
     if (diffDays < 7) return `${diffDays} d ago`;
-    if (diffWeeks < 5) return `${diffWeeks} w ago`;
-    if (diffMonths < 12) return `${diffMonths} mo ago`;
 
-    return `${diffYears} y ago`;
+    return date.toLocaleDateString();
   };
 
-  const getMetaText = (type, item) => {
-    const timeText = formatTimeAgo(getDateValue(item, type));
-
-    if (!timeText) return "";
-
-    if (type === "received") return `Requested ${timeText}`;
-    if (type === "sent") return `Sent ${timeText}`;
-    if (type === "connections") return `Connected ${timeText}`;
-
-    return timeText;
+  const getDateValue = (item) => {
+    return (
+      item?.createdAt ||
+      item?.CreatedAt ||
+      item?.connectedAt ||
+      item?.ConnectedAt ||
+      item?.followedAt ||
+      item?.FollowedAt
+    );
   };
 
-  const normalizeConnection = (user, fallbackDate) => {
-    if (!user) return user;
+  const fetchCompanyFollowers = async () => {
+    if (!currentUserIsEmployer) return;
 
-    return {
-      ...user,
-      connectedAt:
-        user.connectedAt ??
-        user.ConnectedAt ??
-        fallbackDate ??
-        new Date().toISOString(),
-    };
-  };
+    try {
+      setFollowersLoading(true);
 
-  const goToProfile = (user) => {
-    const username = getUsername(user);
-
-    if (!username) return;
-
-    navigate(`/profile/${username}`);
-  };
-
-  const updateReceivedRequests = (updater) => {
-    setReceivedRequests((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      dispatch(setPendingReceivedCount(next.length));
-      return next;
-    });
-  };
-
-  const updateConnections = (updater) => {
-    setConnections((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      return next;
-    });
+      const res = await api.get("/CompanyFollow/my-followers");
+      setFollowers(getResponseArray(res));
+    } catch (err) {
+      console.error("Fetch company followers failed:", err);
+      setFollowers([]);
+    } finally {
+      setFollowersLoading(false);
+    }
   };
 
   const fetchNetworkData = async () => {
+    if (currentUserIsEmployer) return;
+
     try {
       setLoading(true);
 
@@ -233,67 +233,100 @@ const NetworkPage = () => {
         api.get("/Connection/my-connections"),
       ]);
 
-      const received = getDataArray(receivedRes);
-      const sent = getDataArray(sentRes);
-      const myConnections = getDataArray(connectionsRes);
-
-      setReceivedRequests(received);
-      setSentRequests(sent);
-      setConnections(myConnections);
-
-      dispatch(setPendingReceivedCount(received.length));
+      setReceivedRequests(getResponseArray(receivedRes));
+      setSentRequests(getResponseArray(sentRes));
+      setConnections(getResponseArray(connectionsRes));
     } catch (err) {
-      console.error("Failed to fetch network data:", err);
-      showToast("Network data could not be loaded.", "error");
+      console.error("Fetch network data failed:", err);
+      setReceivedRequests([]);
+      setSentRequests([]);
+      setConnections([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const openRemoveModal = (user) => {
-    setSelectedConnection(user);
-    setIsRemoveModalOpen(true);
-  };
-
-  const closeRemoveModal = () => {
-    if (removing) return;
-
-    setIsRemoveModalOpen(false);
-    setSelectedConnection(null);
-  };
-
-  const handleRemoveConnection = async () => {
-    const username = getUsername(selectedConnection);
-
-    if (!username) {
-      showToast("Username not found.", "error");
-      return;
+  useEffect(() => {
+    if (currentUserIsEmployer) {
+      fetchCompanyFollowers();
+    } else {
+      fetchNetworkData();
     }
-
-    try {
-      setRemoving(true);
-
-      await api.post(`/Connection/remove/${username}`);
-
-      updateConnections((prev) => removeByUser(prev, selectedConnection));
-
-      setIsRemoveModalOpen(false);
-      setSelectedConnection(null);
-    } catch (err) {
-      console.error("Remove connection failed:", err);
-      showToast("Connection could not be removed.", "error");
-    } finally {
-      setRemoving(false);
-    }
-  };
+  }, [currentUserIsEmployer]);
 
   useEffect(() => {
-    dispatch(clearConnectionUpdateCount());
-    fetchNetworkData();
-  }, []);
+    if (currentUserIsEmployer) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const connection = new signalR.HubConnectionBuilder()
+      .withUrl(`${API_ROOT}/connectionhub`, {
+        accessTokenFactory: () => localStorage.getItem("token"),
+      })
+      .withAutomaticReconnect()
+      .build();
+
+    connection.on("ReceiveConnectionRequest", (request) => {
+      setReceivedRequests((prev) => addUniqueRequest(prev, request));
+    });
+
+    connection.on("ConnectionRequestSent", (request) => {
+      setSentRequests((prev) => addUniqueRequest(prev, request));
+    });
+
+    connection.on("ReceiveConnectionAccepted", (request) => {
+      setSentRequests((prev) => removeRequestById(prev, getRequestId(request)));
+      setConnections((prev) => addUniqueUser(prev, getReceiver(request)));
+      showToast("Connection request accepted.", "success");
+    });
+
+    connection.on("ConnectionRequestAcceptedByMe", (request) => {
+      setReceivedRequests((prev) =>
+        removeRequestById(prev, getRequestId(request))
+      );
+      setConnections((prev) => addUniqueUser(prev, getSender(request)));
+    });
+
+    connection.on("ReceiveConnectionRejected", (request) => {
+      setSentRequests((prev) => removeRequestById(prev, getRequestId(request)));
+    });
+
+    connection.on("ConnectionRequestRejectedByMe", (request) => {
+      setReceivedRequests((prev) =>
+        removeRequestById(prev, getRequestId(request))
+      );
+    });
+
+    connection.on("ReceiveConnectionCancelled", (request) => {
+      setReceivedRequests((prev) =>
+        removeRequestById(prev, getRequestId(request))
+      );
+    });
+
+    connection.on("ConnectionRequestCancelledByMe", (request) => {
+      setSentRequests((prev) => removeRequestById(prev, getRequestId(request)));
+    });
+
+    connection.on("ConnectionRemovedByMe", (removedUser) => {
+      setConnections((prev) => removeUser(prev, removedUser));
+    });
+
+    connection.on("ReceiveConnectionRemoved", (removedUser) => {
+      setConnections((prev) => removeUser(prev, removedUser));
+    });
+
+    connection
+      .start()
+      .catch((err) => console.error("ConnectionHub Network error:", err));
+
+    return () => {
+      connection.stop();
+    };
+  }, [currentUserIsEmployer]);
 
   useEffect(() => {
-    if (!isRemoveModalOpen) return;
+    if (!removeTarget) return;
 
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -301,660 +334,645 @@ const NetworkPage = () => {
     return () => {
       document.body.style.overflow = originalOverflow;
     };
-  }, [isRemoveModalOpen]);
-
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) return;
-
-    const connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${API_BASE_URL}/connectionhub`, {
-        accessTokenFactory: () => localStorage.getItem("token"),
-      })
-      .withAutomaticReconnect()
-      .build();
-
-    connection.on("ReceiveConnectionRequest", (request) => {
-      updateReceivedRequests((prev) => addUniqueById(prev, request));
-    });
-
-    connection.on("ConnectionRequestSent", (request) => {
-      setSentRequests((prev) => addUniqueById(prev, request));
-    });
-
-    connection.on("ReceiveConnectionAccepted", (request) => {
-      const requestId = getItemId(request);
-      const receiver = getRequestReceiver(request);
-      const respondedAt = request?.respondedAt ?? request?.RespondedAt;
-
-      setSentRequests((prev) => removeByRequestId(prev, requestId));
-
-      if (receiver) {
-        updateConnections((prev) =>
-          addUniqueById(prev, normalizeConnection(receiver, respondedAt))
-        );
-      }
-    });
-
-    connection.on("ConnectionRequestAcceptedByMe", (request) => {
-      const requestId = getItemId(request);
-      const sender = getRequestSender(request);
-      const respondedAt = request?.respondedAt ?? request?.RespondedAt;
-
-      updateReceivedRequests((prev) => removeByRequestId(prev, requestId));
-
-      if (sender) {
-        updateConnections((prev) =>
-          addUniqueById(prev, normalizeConnection(sender, respondedAt))
-        );
-      }
-    });
-
-    connection.on("ReceiveConnectionRejected", (request) => {
-      setSentRequests((prev) => removeByRequestId(prev, request));
-    });
-
-    connection.on("ConnectionRequestRejectedByMe", (request) => {
-      updateReceivedRequests((prev) => removeByRequestId(prev, request));
-    });
-
-    connection.on("ReceiveConnectionCancelled", (request) => {
-      updateReceivedRequests((prev) => removeByRequestId(prev, request));
-    });
-
-    connection.on("ConnectionRequestCancelledByMe", (request) => {
-      setSentRequests((prev) => removeByRequestId(prev, request));
-    });
-
-    connection.on("ConnectedDirectlyByMe", (user) => {
-      updateConnections((prev) =>
-        addUniqueById(prev, normalizeConnection(user))
-      );
-    });
-
-    connection.on("ReceiveDirectConnection", (user) => {
-      updateConnections((prev) =>
-        addUniqueById(prev, normalizeConnection(user))
-      );
-    });
-
-    connection.on("ConnectionRemovedByMe", (removedUser) => {
-      updateConnections((prev) => removeByUser(prev, removedUser));
-    });
-
-    connection.on("ReceiveConnectionRemoved", () => {
-      fetchNetworkData();
-    });
-
-    connection
-      .start()
-      .then(() => console.log("ConnectionHub connected in NetworkPage"))
-      .catch((err) => console.error("ConnectionHub error:", err));
-
-    return () => {
-      connection.stop();
-    };
-  }, [dispatch]);
+  }, [removeTarget]);
 
   const handleAccept = async (request) => {
-    const requestId = getItemId(request);
+    const requestId = getRequestId(request);
 
-    if (!requestId) {
-      showToast("Request id not found.", "error");
-      return;
-    }
+    if (!requestId) return;
 
     try {
-      const res = await api.post(`/Connection/accept/${requestId}`);
-      const responseRequest = getResponseData(res) ?? request;
+      await api.post(`/Connection/accept/${requestId}`);
 
-      updateReceivedRequests((prev) => removeByRequestId(prev, requestId));
-
-      const sender = getRequestSender(responseRequest) ?? getRequestSender(request);
-      const respondedAt =
-        responseRequest?.respondedAt ??
-        responseRequest?.RespondedAt ??
-        request?.respondedAt ??
-        request?.RespondedAt;
-
-      if (sender) {
-        updateConnections((prev) =>
-          addUniqueById(prev, normalizeConnection(sender, respondedAt))
-        );
-      }
+      setReceivedRequests((prev) => removeRequestById(prev, requestId));
+      setConnections((prev) => addUniqueUser(prev, getSender(request)));
     } catch (err) {
       console.error("Accept request failed:", err);
-      showToast("Request could not be accepted.", "error");
+      showToast("Failed to accept request.", "error");
     }
   };
 
   const handleReject = async (request) => {
-    const requestId = getItemId(request);
+    const requestId = getRequestId(request);
 
-    if (!requestId) {
-      showToast("Request id not found.", "error");
-      return;
-    }
+    if (!requestId) return;
 
     try {
       await api.post(`/Connection/reject/${requestId}`);
-
-      updateReceivedRequests((prev) => removeByRequestId(prev, requestId));
+      setReceivedRequests((prev) => removeRequestById(prev, requestId));
     } catch (err) {
       console.error("Reject request failed:", err);
-      showToast("Request could not be rejected.", "error");
+      showToast("Failed to reject request.", "error");
     }
   };
 
   const handleCancel = async (request) => {
-    const requestId = getItemId(request);
+    const requestId = getRequestId(request);
 
-    if (!requestId) {
-      showToast("Request id not found.", "error");
-      return;
-    }
+    if (!requestId) return;
 
     try {
       await api.post(`/Connection/cancel/${requestId}`);
-
-      setSentRequests((prev) => removeByRequestId(prev, requestId));
+      setSentRequests((prev) => removeRequestById(prev, requestId));
     } catch (err) {
       console.error("Cancel request failed:", err);
-      showToast("Request could not be cancelled.", "error");
+      showToast("Failed to cancel request.", "error");
     }
   };
 
-  const getProfileImage = (user) => {
-    const profileImage = user?.profileImage ?? user?.ProfileImage;
+  const handleRemoveConnection = async () => {
+    if (!removeTarget) return;
 
-    if (!profileImage) return "https://via.placeholder.com/46";
+    const username = getUsername(removeTarget);
 
-    if (
-      profileImage.startsWith("http://") ||
-      profileImage.startsWith("https://")
-    ) {
-      return profileImage;
+    if (!username) return;
+
+    try {
+      await api.post(`/Connection/remove/${username}`);
+
+      setConnections((prev) => removeUser(prev, removeTarget));
+      setRemoveTarget(null);
+    } catch (err) {
+      console.error("Remove connection failed:", err);
+      showToast("Failed to remove connection.", "error");
     }
-
-    return `${API_BASE_URL}/${profileImage.replace(/^\/+/, "")}`;
   };
 
-  const renderUserInfo = (user, metaText = "") => {
-    const fullName = user?.fullName ?? user?.FullName ?? "Unknown user";
-    const currentPosition =
-      user?.currentPosition ?? user?.CurrentPosition ?? "No position";
-    const username = user?.username ?? user?.Username ?? "unknown";
+  const renderPersonRow = ({ user, meta, actions }) => {
+    const username = getUsername(user);
 
     return (
-      <div style={styles.userInfo}>
-        <img src={getProfileImage(user)} alt="User" style={styles.avatar} />
+      <div key={getUserId(user) || username || Math.random()} style={styles.personRow}>
+        <img src={getImageUrl(getProfileImage(user))} alt="" style={styles.avatar} />
 
-        <div>
-          <div
-            className="network-fullname"
-            style={styles.fullName}
-            onClick={() => goToProfile(user)}
-            title="View profile"
-          >
-            {fullName}
-          </div>
+        <div
+          style={styles.personInfo}
+          onClick={() => username && navigate(`/profile/${username}`)}
+        >
+          <h3 style={styles.personName}>{getFullName(user)}</h3>
 
-          <div style={styles.position}>{currentPosition}</div>
-          <div style={styles.username}>@{username}</div>
+          <p style={styles.personHeadline}>{getHeadline(user)}</p>
 
-          {metaText && <div style={styles.metaText}>{metaText}</div>}
+          <p style={styles.personMeta}>
+            {getLocation(user)}
+            {meta ? `${getLocation(user) ? " · " : ""}${meta}` : ""}
+          </p>
         </div>
+
+        <div style={styles.rowActions}>{actions}</div>
       </div>
     );
   };
 
+  const renderReceived = () => {
+    if (loading) return <p style={styles.emptyText}>Loading requests...</p>;
+
+    if (!receivedRequests.length) {
+      return <p style={styles.emptyText}>No received requests.</p>;
+    }
+
+    return receivedRequests.map((request) =>
+      renderPersonRow({
+        user: getSender(request),
+        meta: formatTimeAgo(getDateValue(request)),
+        actions: (
+          <>
+            <button style={styles.acceptButton} onClick={() => handleAccept(request)}>
+              Accept
+            </button>
+
+            <button style={styles.rejectButton} onClick={() => handleReject(request)}>
+              Reject
+            </button>
+          </>
+        ),
+      })
+    );
+  };
+
+  const renderSent = () => {
+    if (loading) return <p style={styles.emptyText}>Loading requests...</p>;
+
+    if (!sentRequests.length) {
+      return <p style={styles.emptyText}>No sent requests.</p>;
+    }
+
+    return sentRequests.map((request) =>
+      renderPersonRow({
+        user: getReceiver(request),
+        meta: formatTimeAgo(getDateValue(request)),
+        actions: (
+          <button style={styles.cancelButton} onClick={() => handleCancel(request)}>
+            Cancel
+          </button>
+        ),
+      })
+    );
+  };
+
+  const renderConnections = () => {
+    if (loading) return <p style={styles.emptyText}>Loading connections...</p>;
+
+    if (!connections.length) {
+      return <p style={styles.emptyText}>No connections yet.</p>;
+    }
+
+    return connections.map((connectionUser) =>
+      renderPersonRow({
+        user: connectionUser,
+        meta: formatTimeAgo(getDateValue(connectionUser)),
+        actions: (
+          <button
+            style={styles.connectedButton}
+            onClick={() => setRemoveTarget(connectionUser)}
+          >
+            Connected
+          </button>
+        ),
+      })
+    );
+  };
+
+  const tabs = [
+    {
+      key: "received",
+      label: "Received",
+      count: receivedRequests.length,
+    },
+    {
+      key: "sent",
+      label: "Sent",
+      count: sentRequests.length,
+    },
+    {
+      key: "connections",
+      label: "Connections",
+      count: connections.length,
+    },
+  ];
+
+  if (currentUserIsEmployer) {
+    return (
+      <>
+        <Navbar />
+
+        <div style={styles.page}>
+          <div style={styles.employerContainer}>
+            <div style={styles.headerCard}>
+              <h2 style={styles.title}>Followers</h2>
+
+              <p style={styles.subtitle}>
+                People who follow your company page.
+              </p>
+            </div>
+
+            <div style={styles.contentCard}>
+              {followersLoading && (
+                <p style={styles.emptyText}>Loading followers...</p>
+              )}
+
+              {!followersLoading && followers.length === 0 && (
+                <p style={styles.emptyText}>No followers yet.</p>
+              )}
+
+              {!followersLoading &&
+                followers.map((follower) =>
+                  renderPersonRow({
+                    user: {
+                      id: follower.followerId || follower.FollowerId,
+                      username: follower.username || follower.Username,
+                      fullName: follower.fullName || follower.FullName,
+                      currentPosition:
+                        follower.currentPosition || follower.CurrentPosition,
+                      profileImage: follower.profileImage || follower.ProfileImage,
+                      location: follower.location || follower.Location,
+                    },
+                    meta: formatTimeAgo(follower.followedAt || follower.FollowedAt),
+                    actions: (
+                      <button
+                        style={styles.viewButton}
+                        onClick={() =>
+                          navigate(
+                            `/profile/${follower.username || follower.Username}`
+                          )
+                        }
+                      >
+                        View
+                      </button>
+                    ),
+                  })
+                )}
+            </div>
+          </div>
+        </div>
+
+        {toast && (
+          <div
+            style={{
+              ...styles.toast,
+              ...(toast.type === "error" ? styles.toastError : styles.toastSuccess),
+            }}
+          >
+            {toast.message}
+          </div>
+        )}
+      </>
+    );
+  }
+
   return (
     <>
-      <style>
-        {`
-          .network-fullname:hover {
-            text-decoration: underline;
-          }
-        `}
-      </style>
-
       <Navbar />
 
-      <main style={styles.page}>
-        <section style={styles.container}>
-          <h1 style={styles.title}>Network</h1>
-          <p style={styles.subtitle}>
-            Manage your connection requests and connections.
-          </p>
+      <div style={styles.page}>
+        <div style={styles.networkLayout}>
+          <aside style={styles.sidebar}>
+            <h2 style={styles.sidebarTitle}>Network</h2>
 
-          <div style={styles.tabs}>
-            <button
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === "received" ? styles.activeTab : {}),
-              }}
-              onClick={() => setActiveTab("received")}
-            >
-              Received
-              {receivedRequests.length > 0 && (
-                <span style={styles.tabCount}>{receivedRequests.length}</span>
-              )}
-            </button>
+            <div style={styles.tabs}>
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  style={{
+                    ...styles.tabButton,
+                    ...(activeTab === tab.key ? styles.activeTab : {}),
+                  }}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <span>{tab.label}</span>
 
-            <button
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === "sent" ? styles.activeTab : {}),
-              }}
-              onClick={() => setActiveTab("sent")}
-            >
-              Sent
-              {sentRequests.length > 0 && (
-                <span style={styles.tabCount}>{sentRequests.length}</span>
-              )}
-            </button>
+                  {tab.count > 0 && (
+                    <span style={styles.tabCount}>{tab.count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </aside>
 
-            <button
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === "connections" ? styles.activeTab : {}),
-              }}
-              onClick={() => setActiveTab("connections")}
-            >
-              Connections
-              {connections.length > 0 && (
-                <span style={styles.connectionTabCount}>
-                  {connections.length}
-                </span>
-              )}
-            </button>
-          </div>
+          <main style={styles.main}>
+            <div style={styles.headerCard}>
+              <h2 style={styles.title}>
+                {activeTab === "received" && "Received requests"}
+                {activeTab === "sent" && "Sent requests"}
+                {activeTab === "connections" && "Connections"}
+              </h2>
 
-          <div style={styles.content}>
-            {loading && <p style={styles.emptyText}>Loading...</p>}
+              <p style={styles.subtitle}>
+                {activeTab === "received" &&
+                  "People who want to connect with you."}
+                {activeTab === "sent" &&
+                  "Connection requests you have sent."}
+                {activeTab === "connections" &&
+                  "People you are connected with."}
+              </p>
+            </div>
 
-            {!loading && activeTab === "received" && (
-              <>
-                {receivedRequests.length === 0 ? (
-                  <p style={styles.emptyText}>
-                    No received connection requests yet.
-                  </p>
-                ) : (
-                  receivedRequests.map((request) => (
-                    <div key={getItemId(request)} style={styles.requestItem}>
-                      {renderUserInfo(
-                        getRequestSender(request),
-                        getMetaText("received", request)
-                      )}
+            <div style={styles.contentCard}>
+              {activeTab === "received" && renderReceived()}
+              {activeTab === "sent" && renderSent()}
+              {activeTab === "connections" && renderConnections()}
+            </div>
+          </main>
+        </div>
+      </div>
 
-                      <div style={styles.actions}>
-                        <button
-                          style={styles.acceptBtn}
-                          onClick={() => handleAccept(request)}
-                        >
-                          Accept
-                        </button>
+      {removeTarget && (
+        <div style={styles.modalOverlay} onClick={() => setRemoveTarget(null)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>Remove connection?</h3>
 
-                        <button
-                          style={styles.rejectBtn}
-                          onClick={() => handleReject(request)}
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </>
-            )}
-
-            {!loading && activeTab === "sent" && (
-              <>
-                {sentRequests.length === 0 ? (
-                  <p style={styles.emptyText}>
-                    No sent connection requests yet.
-                  </p>
-                ) : (
-                  sentRequests.map((request) => (
-                    <div key={getItemId(request)} style={styles.requestItem}>
-                      {renderUserInfo(
-                        getRequestReceiver(request),
-                        getMetaText("sent", request)
-                      )}
-
-                      <div style={styles.actions}>
-                        <button
-                          style={styles.cancelBtn}
-                          onClick={() => handleCancel(request)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </>
-            )}
-
-            {!loading && activeTab === "connections" && (
-              <>
-                {connections.length === 0 ? (
-                  <p style={styles.emptyText}>No connections yet.</p>
-                ) : (
-                  connections.map((user) => (
-                    <div
-                      key={getItemId(user) ?? getUsername(user)}
-                      style={styles.requestItem}
-                    >
-                      {renderUserInfo(user, getMetaText("connections", user))}
-
-                      <div style={styles.actions}>
-                        <button
-                          style={styles.connectedBtn}
-                          onClick={() => openRemoveModal(user)}
-                        >
-                          Connected
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </>
-            )}
-          </div>
-        </section>
-      </main>
-
-      {isRemoveModalOpen && (
-        <div style={styles.removeModalOverlay} onClick={closeRemoveModal}>
-          <div
-            style={styles.removeModal}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={styles.removeModalTitle}>Remove connection?</h3>
-
-            <p style={styles.removeModalText}>
+            <p style={styles.modalText}>
               Do you want to remove this connection?
             </p>
 
-            <div style={styles.removeModalActions}>
+            <div style={styles.modalActions}>
               <button
-                style={styles.removeCancelBtn}
-                onClick={closeRemoveModal}
-                disabled={removing}
+                type="button"
+                style={styles.modalCancelButton}
+                onClick={() => setRemoveTarget(null)}
               >
                 Cancel
               </button>
 
               <button
-                style={styles.removeConfirmBtn}
+                type="button"
+                style={styles.modalRemoveButton}
                 onClick={handleRemoveConnection}
-                disabled={removing}
               >
-                {removing ? "Removing..." : "Remove"}
+                Remove
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {toast.show && <Toast message={toast.message} type={toast.type} />}
+      {toast && (
+        <div
+          style={{
+            ...styles.toast,
+            ...(toast.type === "error" ? styles.toastError : styles.toastSuccess),
+          }}
+        >
+          {toast.message}
+        </div>
+      )}
     </>
   );
-};
+}
 
 const styles = {
   page: {
     minHeight: "100vh",
     backgroundColor: "#f3f2ef",
-    paddingTop: "80px",
-    paddingLeft: "16px",
-    paddingRight: "16px",
+    padding: "24px 0 60px",
   },
 
-  container: {
-    maxWidth: "900px",
+  networkLayout: {
+    width: "1120px",
+    maxWidth: "1120px",
     margin: "0 auto",
+    display: "grid",
+    gridTemplateColumns: "260px 1fr",
+    gap: 18,
+  },
+
+  employerContainer: {
+    width: "820px",
+    maxWidth: "820px",
+    margin: "0 auto",
+  },
+
+  sidebar: {
     backgroundColor: "#fff",
-    borderRadius: "12px",
     border: "1px solid #ddd",
-    padding: "20px",
+    borderRadius: 12,
+    padding: 16,
+    height: "fit-content",
+    position: "sticky",
+    top: 84,
   },
 
-  title: {
-    margin: 0,
-    fontSize: "24px",
-    fontWeight: "600",
-    color: "#191919",
-  },
-
-  subtitle: {
-    marginTop: "6px",
-    marginBottom: "18px",
-    color: "#666",
-    fontSize: "14px",
+  sidebarTitle: {
+    margin: "0 0 16px",
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#111",
   },
 
   tabs: {
     display: "flex",
-    gap: "10px",
-    borderBottom: "1px solid #ddd",
-    paddingBottom: "12px",
+    flexDirection: "column",
+    gap: 5,
   },
 
   tabButton: {
     border: "none",
-    backgroundColor: "#f3f2ef",
-    color: "#555",
-    padding: "8px 14px",
-    borderRadius: "20px",
+    backgroundColor: "transparent",
+    borderRadius: 8,
+    padding: "11px 12px",
     cursor: "pointer",
-    fontWeight: "500",
+    textAlign: "left",
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#222",
     display: "flex",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: "7px",
   },
 
   activeTab: {
-    backgroundColor: "#0a66c2",
-    color: "#fff",
+    backgroundColor: "#eef3f8",
+    color: "#0a66c2",
   },
 
   tabCount: {
-    minWidth: "18px",
-    height: "18px",
-    borderRadius: "50%",
-    backgroundColor: "#e11d48",
+    minWidth: 22,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: "#d11124",
     color: "#fff",
-    fontSize: "11px",
-    fontWeight: "700",
-    display: "flex",
+    fontSize: 12,
+    display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "0 5px",
+    padding: "0 6px",
   },
 
-  connectionTabCount: {
-    minWidth: "18px",
-    height: "18px",
-    borderRadius: "50%",
-    backgroundColor: "#16a34a",
-    color: "#fff",
-    fontSize: "11px",
-    fontWeight: "700",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0 5px",
-  },
-
-  content: {
-    paddingTop: "20px",
-  },
-
-  emptyText: {
-    color: "#777",
-    fontSize: "14px",
-  },
-
-  requestItem: {
-    minHeight: "72px",
-    borderBottom: "1px solid #eee",
-    padding: "12px 0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "14px",
-  },
-
-  userInfo: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
+  main: {
     minWidth: 0,
   },
 
-  avatar: {
-    width: "46px",
-    height: "46px",
-    borderRadius: "50%",
-    objectFit: "cover",
-    backgroundColor: "#eee",
+  headerCard: {
+    backgroundColor: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 12,
   },
 
-  fullName: {
-    fontSize: "15px",
-    fontWeight: "600",
-    color: "#191919",
-    cursor: "pointer",
+  title: {
+    margin: 0,
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#111",
   },
 
-  position: {
-    fontSize: "13px",
+  subtitle: {
+    margin: "6px 0 0",
+    fontSize: 14,
     color: "#666",
-    marginTop: "2px",
   },
 
-  username: {
-    fontSize: "12px",
-    color: "#777",
-    marginTop: "2px",
+  contentCard: {
+    backgroundColor: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: 12,
+    overflow: "hidden",
   },
 
-  metaText: {
-    fontSize: "12px",
-    color: "#999",
-    marginTop: "2px",
-  },
-
-  actions: {
+  personRow: {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
-    flexShrink: 0,
+    gap: 12,
+    padding: "14px 18px",
+    borderBottom: "1px solid #eee",
   },
 
-  acceptBtn: {
-    border: "none",
+  avatar: {
+    width: 58,
+    height: 58,
+    borderRadius: "50%",
+    objectFit: "cover",
+    backgroundColor: "#eef3f8",
+  },
+
+  personInfo: {
+    flex: 1,
+    minWidth: 0,
+    cursor: "pointer",
+  },
+
+  personName: {
+    margin: "0 0 4px",
+    fontSize: 16,
+    fontWeight: 700,
+    color: "#111",
+  },
+
+  personHeadline: {
+    margin: "0 0 3px",
+    fontSize: 14,
+    color: "#444",
+  },
+
+  personMeta: {
+    margin: 0,
+    fontSize: 13,
+    color: "#777",
+  },
+
+  rowActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  acceptButton: {
+    border: "1px solid #0a66c2",
     backgroundColor: "#0a66c2",
     color: "#fff",
-    padding: "7px 13px",
-    borderRadius: "18px",
+    borderRadius: 999,
+    padding: "7px 15px",
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
   },
 
-  rejectBtn: {
+  rejectButton: {
     border: "1px solid #999",
     backgroundColor: "#fff",
-    color: "#555",
-    padding: "7px 13px",
-    borderRadius: "18px",
+    color: "#444",
+    borderRadius: 999,
+    padding: "7px 15px",
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
   },
 
-  cancelBtn: {
-    border: "1px solid #d93025",
+  cancelButton: {
+    border: "1px solid #b24020",
     backgroundColor: "#fff",
-    color: "#d93025",
-    padding: "7px 13px",
-    borderRadius: "18px",
+    color: "#b24020",
+    borderRadius: 999,
+    padding: "7px 15px",
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
   },
 
-  connectedBtn: {
-    border: "none",
-    backgroundColor: "#5f9f6f",
-    color: "#fff",
-    padding: "7px 13px",
-    borderRadius: "18px",
+  connectedButton: {
+    border: "1px solid #057642",
+    backgroundColor: "#e6f4ea",
+    color: "#057642",
+    borderRadius: 999,
+    padding: "7px 15px",
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
   },
 
-  removeModalOverlay: {
+  viewButton: {
+    border: "1px solid #0a66c2",
+    backgroundColor: "#fff",
+    color: "#0a66c2",
+    borderRadius: 999,
+    padding: "7px 16px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  emptyText: {
+    padding: 18,
+    color: "#666",
+    fontSize: 14,
+  },
+
+  modalOverlay: {
     position: "fixed",
     inset: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    backgroundColor: "rgba(0,0,0,0.35)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 9999,
-    padding: "16px",
+    padding: 20,
   },
 
-  removeModal: {
+  modal: {
     width: "100%",
-    maxWidth: "380px",
+    maxWidth: 400,
     backgroundColor: "#fff",
-    borderRadius: "12px",
-    padding: "20px",
-    boxShadow: "0 10px 30px rgba(0, 0, 0, 0.2)",
+    borderRadius: 12,
+    padding: 22,
+    boxShadow: "0 16px 40px rgba(0,0,0,0.22)",
   },
 
-  removeModalTitle: {
-    margin: 0,
-    fontSize: "18px",
-    fontWeight: "600",
-    color: "#191919",
+  modalTitle: {
+    margin: "0 0 10px",
+    fontSize: 20,
+    fontWeight: 700,
+    color: "#111",
   },
 
-  removeModalText: {
-    marginTop: "10px",
-    marginBottom: "20px",
-    fontSize: "14px",
+  modalText: {
+    margin: "0 0 20px",
+    fontSize: 14,
     color: "#555",
-    lineHeight: "1.4",
+    lineHeight: 1.5,
   },
 
-  removeModalActions: {
+  modalActions: {
     display: "flex",
     justifyContent: "flex-end",
-    gap: "10px",
+    gap: 10,
   },
 
-  removeCancelBtn: {
-    border: "1px solid #999",
+  modalCancelButton: {
+    border: "1px solid #ccc",
     backgroundColor: "#fff",
-    color: "#555",
-    padding: "8px 14px",
-    borderRadius: "18px",
+    color: "#333",
+    borderRadius: 999,
+    padding: "8px 16px",
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
   },
 
-  removeConfirmBtn: {
-    border: "none",
-    backgroundColor: "#d93025",
+  modalRemoveButton: {
+    border: "1px solid #b24020",
+    backgroundColor: "#b24020",
     color: "#fff",
-    padding: "8px 14px",
-    borderRadius: "18px",
+    borderRadius: 999,
+    padding: "8px 16px",
+    fontWeight: 700,
     cursor: "pointer",
-    fontWeight: "600",
+  },
+
+  toast: {
+    position: "fixed",
+    top: 80,
+    left: "50%",
+    transform: "translateX(-50%)",
+    borderRadius: 999,
+    padding: "10px 18px",
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: 14,
+    zIndex: 99999,
+    boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+  },
+
+  toastSuccess: {
+    backgroundColor: "#057642",
+  },
+
+  toastError: {
+    backgroundColor: "#b24020",
   },
 };
-
-export default NetworkPage;

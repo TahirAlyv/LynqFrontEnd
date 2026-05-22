@@ -9,6 +9,7 @@ import {
 import api from "../../services/api";
 import PersonalAccount from "../../assets/PersonalAccount.png";
 import CompanyAccount from "../../assets/CompanyAccount.png";
+
 const RegisterForm = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -22,7 +23,13 @@ const RegisterForm = () => {
     email: "",
     password: "",
     confirmPassword: "",
+
     fullName: "",
+
+    companyName: "",
+    industry: "",
+    website: "",
+
     bio: "",
     location: "",
   });
@@ -31,14 +38,41 @@ const RegisterForm = () => {
 
   const pageSubtitle = useMemo(() => {
     if (isCompany) {
-      return "Company account registration will be available soon.";
+      return "Create your company profile and start hiring.";
     }
+
     return "Create your personal profile and get started.";
   }, [isCompany]);
 
+  const getErrorMessage = (err) => {
+    const data = err?.response?.data;
+
+    if (!data) return err.message || "Registration failed.";
+
+    if (typeof data === "string") return data;
+
+    if (Array.isArray(data)) {
+      return data.map((item) => item.description || item.message || item).join(" ");
+    }
+
+    if (data.message) return data.message;
+
+    if (data.title) return data.title;
+
+    if (data.errors) {
+      const allErrors = Object.values(data.errors).flat();
+      return allErrors.join(" ");
+    }
+
+    return "Registration failed.";
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+
     setFormError("");
+    dispatch(registerFailure(null));
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -48,20 +82,10 @@ const RegisterForm = () => {
   const handleSelectType = (type) => {
     setAccountType(type);
     setFormError("");
+    dispatch(registerFailure(null));
   };
- 
 
   const validateForm = () => {
-    if (isCompany) {
-      setFormError("Company registration is not available yet.");
-      return false;
-    }
-
-    if (!formData.fullName.trim()) {
-      setFormError("Full name is required.");
-      return false;
-    }
-
     if (!formData.username.trim()) {
       setFormError("Username is required.");
       return false;
@@ -87,7 +111,43 @@ const RegisterForm = () => {
       return false;
     }
 
+    if (isCompany) {
+      if (!formData.companyName.trim()) {
+        setFormError("Company name is required.");
+        return false;
+      }
+    } else {
+      if (!formData.fullName.trim()) {
+        setFormError("Full name is required.");
+        return false;
+      }
+    }
+
     return true;
+  };
+
+  const buildPayload = () => {
+    if (isCompany) {
+      return {
+        username: formData.username.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        name: formData.companyName.trim(),
+        industry: formData.industry.trim() || null,
+        website: formData.website.trim() || null,
+        bio: formData.bio.trim() || null,
+        location: formData.location.trim() || null,
+      };
+    }
+
+    return {
+      username: formData.username.trim(),
+      email: formData.email.trim(),
+      password: formData.password,
+      fullName: formData.fullName.trim(),
+      bio: formData.bio.trim() || null,
+      location: formData.location.trim() || null,
+    };
   };
 
   const handleSubmit = async (e) => {
@@ -99,26 +159,18 @@ const RegisterForm = () => {
     dispatch(registerStart());
 
     try {
-      const payload = {
-        username: formData.username,
-        email: formData.email,
-        password: formData.password,
-        fullName: formData.fullName,
-        bio: formData.bio,
-        location: formData.location,
-      };
+      const payload = buildPayload();
 
-      const response = await api.post("/Auth/jobSeekers/register", payload);
+      const endpoint = isCompany
+        ? "/Auth/employers/register"
+        : "/Auth/jobseekers/register";
+
+      const response = await api.post(endpoint, payload);
 
       dispatch(registerSuccess(response.data));
       navigate("/login");
     } catch (err) {
-      const message =
-        err?.response?.data?.message ||
-        err?.response?.data ||
-        err.message ||
-        "Registration failed.";
-
+      const message = getErrorMessage(err);
       dispatch(registerFailure(message));
     }
   };
@@ -140,8 +192,14 @@ const RegisterForm = () => {
               ...(accountType === "personal" ? styles.typeCardActive : {}),
             }}
           >
-             <img src={PersonalAccount} alt="Personal Account" style={styles.typeIcon} />
+            <img
+              src={PersonalAccount}
+              alt="Personal Account"
+              style={styles.typeIcon}
+            />
+
             <div style={styles.typeTitle}>Personal Account</div>
+
             <div style={styles.typeText}>
               Build your profile, add experience, and share posts.
             </div>
@@ -155,25 +213,48 @@ const RegisterForm = () => {
               ...(accountType === "company" ? styles.typeCardActive : {}),
             }}
           >
-            <img src={CompanyAccount} alt="Company Account" style={styles.typeIcon} />
+            <img
+              src={CompanyAccount}
+              alt="Company Account"
+              style={styles.typeIcon}
+            />
+
             <div style={styles.typeTitle}>Company Account</div>
+
             <div style={styles.typeText}>
-              Company pages and job posting features will be added soon.
+              Create a company profile, share posts, and publish job openings.
             </div>
-            <span style={styles.comingSoon}>Coming soon</span>
           </button>
         </div>
 
-        {accountType === "company" ? (
-          <div style={styles.infoBox}>
-            <div style={styles.infoTitle}>Company registration is not active yet</div>
-            <div style={styles.infoText}>
-              For now, you can continue with a personal account. Later we can connect
-              this flow to company onboarding.
+        <form onSubmit={handleSubmit} style={styles.form}>
+          {isCompany ? (
+            <div style={styles.row}>
+              <div style={styles.field}>
+                <label style={styles.label}>Company name</label>
+                <input
+                  type="text"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  placeholder="Enter company name"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>Username</label>
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  placeholder="Choose a username"
+                  style={styles.input}
+                />
+              </div>
             </div>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={styles.form}>
+          ) : (
             <div style={styles.row}>
               <div style={styles.field}>
                 <label style={styles.label}>Full name</label>
@@ -199,85 +280,126 @@ const RegisterForm = () => {
                 />
               </div>
             </div>
+          )}
 
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Enter your email"
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={styles.field}>
-                <label style={styles.label}>Location</label>
-                   <input
-                    type="text"
-                    name="location"
-                    value={formData.location}
-                    onChange={handleChange}
-                    placeholder="Example: Baku, Azerbaijan"
-                    style={{ ...styles.input, marginBottom: 0 }}
-                  />
-                  <div style={styles.hint}>
-                    This will be shown on your profile.
-                  </div>
-              </div>
-            </div>
-
-            <div style={styles.row}>
-              <div style={styles.field}>
-                <label style={styles.label}>Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="Create a password"
-                  style={styles.input}
-                />
-              </div>
-
-              <div style={styles.field}>
-                <label style={styles.label}>Confirm password</label>
-                <input
-                  type="password"
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  placeholder="Repeat your password"
-                  style={styles.input}
-                />
-              </div>
-            </div>
-
+          <div style={styles.row}>
             <div style={styles.field}>
-              <label style={styles.label}>Bio</label>
-              <textarea
-                name="bio"
-                value={formData.bio}
+              <label style={styles.label}>Email</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
                 onChange={handleChange}
-                placeholder="Write a short bio"
-                style={styles.textarea}
+                placeholder="Enter your email"
+                style={styles.input}
               />
             </div>
 
-            {(formError || error) && (
-              <div style={styles.errorBox}>{formError || error}</div>
-            )}
+            <div style={styles.field}>
+              <label style={styles.label}>Location</label>
+              <input
+                type="text"
+                name="location"
+                value={formData.location}
+                onChange={handleChange}
+                placeholder="Example: Baku, Azerbaijan"
+                style={{ ...styles.input, marginBottom: 0 }}
+              />
 
-            <button type="submit" disabled={loading} style={styles.submitButton}>
-              {loading ? "Creating account..." : "Create account"}
-            </button>
-          </form>
-        )}
+              <div style={styles.hint}>
+                This will be shown on your profile.
+              </div>
+            </div>
+          </div>
+
+          {isCompany && (
+            <div style={styles.row}>
+              <div style={styles.field}>
+                <label style={styles.label}>Industry</label>
+                <input
+                  type="text"
+                  name="industry"
+                  value={formData.industry}
+                  onChange={handleChange}
+                  placeholder="Example: Software Development"
+                  style={styles.input}
+                />
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>Website</label>
+                <input
+                  type="text"
+                  name="website"
+                  value={formData.website}
+                  onChange={handleChange}
+                  placeholder="Example: https://company.com"
+                  style={styles.input}
+                />
+              </div>
+            </div>
+          )}
+
+          <div style={styles.row}>
+            <div style={styles.field}>
+              <label style={styles.label}>Password</label>
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Create a password"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>Confirm password</label>
+              <input
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Repeat your password"
+                style={styles.input}
+              />
+            </div>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>
+              {isCompany ? "Company bio" : "Bio"}
+            </label>
+
+            <textarea
+              name="bio"
+              value={formData.bio}
+              onChange={handleChange}
+              placeholder={
+                isCompany
+                  ? "Write a short description about your company"
+                  : "Write a short bio"
+              }
+              style={styles.textarea}
+            />
+          </div>
+
+          {(formError || error) && (
+            <div style={styles.errorBox}>{formError || error}</div>
+          )}
+
+          <button type="submit" disabled={loading} style={styles.submitButton}>
+            {loading
+              ? "Creating account..."
+              : isCompany
+              ? "Create company account"
+              : "Create account"}
+          </button>
+        </form>
 
         <div style={styles.footer}>
           <span style={styles.footerText}>Already have an account?</span>
+
           <Link to="/login" style={styles.loginLink}>
             Sign in
           </Link>
@@ -359,36 +481,7 @@ const styles = {
     fontSize: "14px",
     color: "#5f5f5f",
     lineHeight: 1.5,
-    maxWidth: "300px",
-  },
-  comingSoon: {
-    position: "absolute",
-    top: "16px",
-    right: "16px",
-    fontSize: "12px",
-    fontWeight: 700,
-    color: "#0a66c2",
-    background: "#eef5fc",
-    padding: "6px 10px",
-    borderRadius: "999px",
-  },
-  infoBox: {
-    border: "1px solid #d8e9fb",
-    background: "#f7fbff",
-    borderRadius: "14px",
-    padding: "20px",
-    marginBottom: "24px",
-  },
-  infoTitle: {
-    fontSize: "16px",
-    fontWeight: 700,
-    color: "#184a7a",
-    marginBottom: "8px",
-  },
-  infoText: {
-    fontSize: "14px",
-    color: "#4e6275",
-    lineHeight: 1.6,
+    maxWidth: "320px",
   },
   form: {
     display: "flex",
@@ -429,12 +522,6 @@ const styles = {
     resize: "vertical",
     fontFamily: "inherit",
   },
-
-  locationStatus: {
-    marginTop: "8px",
-    fontSize: "13px",
-    color: "#666",
-  },
   errorBox: {
     borderRadius: "12px",
     background: "#fff1f1",
@@ -471,10 +558,10 @@ const styles = {
     fontWeight: 700,
   },
   hint: {
-  fontSize: "12px",
-  color: "#777",
-  marginTop: "4px"
-}
+    fontSize: "12px",
+    color: "#777",
+    marginTop: "4px",
+  },
 };
 
 export default RegisterForm;

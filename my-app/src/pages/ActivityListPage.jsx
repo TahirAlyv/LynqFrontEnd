@@ -13,7 +13,7 @@ const ActivityListPage = ({ likeConnection }) => {
   const isOwner = location.state?.isOwner === true;
   const userId = location.state?.userId;
   const openCommentsPostId = location.state?.openCommentsPostId;
-
+  const isEmployer = location.state?.isEmployer === true;
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -117,6 +117,7 @@ const ActivityListPage = ({ likeConnection }) => {
                   key={post.id}
                   post={post}
                   showActions={isOwner}
+                  isEmployer={isEmployer}
                   showToast={showToast}
                   likeConnection={likeConnection}
                   onPostUpdated={handlePostUpdated}

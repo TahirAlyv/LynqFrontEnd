@@ -13,6 +13,7 @@ import api from "../../../services/api";
 import { useNavigate } from "react-router-dom";
 import ActivitiesCarousel from "../Sections/ActivitiesCarousel";
 import CreatePostBox from "../../Post/CreatePostBox";
+import InterestsSection from "../Sections/InterestsSection";
 
 const ProfileView = ({ user, setUser, isOwner, readOnly, likeConnection }) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -436,6 +437,10 @@ const handleCloseEditModal = () => {
               onAddEducation={() => openEdit("education")}
               onEditEducation={openEditEducation}
             />
+          </div>
+
+          <div style={styles.section}>
+            <InterestsSection isOwner={isOwner} showToast={showToast} />
           </div>
         </div>
       </div>

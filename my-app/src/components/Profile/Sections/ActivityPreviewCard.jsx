@@ -19,6 +19,7 @@ const ActivityPreviewCard = ({
   showToast,
   onOpenComments,
   showActions = false,
+  isEmployer = false,
 }) => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [localLikeCount, setLocalLikeCount] = useState(post.likeCount || 0);
@@ -102,7 +103,10 @@ const ActivityPreviewCard = ({
             <img
               src={profileImageSrc}
               alt={username || "User"}
-              style={styles.avatar}
+              style={{
+              ...styles.avatar,
+              borderRadius: isEmployer ? "8px" : "50%",
+            }}
             />
 
             <div style={styles.authorInfo}>

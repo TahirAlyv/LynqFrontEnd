@@ -8,10 +8,14 @@ import network from '../../assets/network.png';
 import job from '../../assets/briefcase.png';
 import chat from '../../assets/chat.png';
 import notifications from '../../assets/notification.png';
+import logout from '../../assets/logout.png';
 import SearchModal from '../Search/SearchModal';
 
 import * as signalR from '@microsoft/signalr';
 import api from '../../services/api';
+
+import { clearUnread as clearMessageUnread } from '../../store/messageSlice';
+import { clearUnread as clearNotificationUnread } from '../../store/notificationSlice';
 
 import {
   setPendingReceivedCount,
@@ -19,11 +23,17 @@ import {
   clearConnectionUpdateCount,
 } from '../../store/connectionSlice';
 
+const API_ROOT = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
+
 const Navbar = () => {
   const dispatch = useDispatch();
 
   const user = useSelector((state) => state.user.user);
   const unreadMessages = useSelector((state) => state.messages.unreadMessages);
+
+  const notificationUnreadCount = useSelector(
+    (state) => state.notifications.unreadCount
+  );
 
   const pendingReceivedCount = useSelector(
     (state) => state.connections.pendingReceivedCount
@@ -39,10 +49,11 @@ const Navbar = () => {
   const location = useLocation();
 
   const [modal, setModal] = useState(false);
+  const [logoutModal, setLogoutModal] = useState(false);
   const modalRef = useRef(null);
 
   const totalUnreadCount = Object.values(unreadMessages || {}).reduce(
-    (acc, count) => acc + count,
+    (acc, count) => acc + Number(count || 0),
     0
   );
 
@@ -52,6 +63,45 @@ const Navbar = () => {
   const isMessages = location.pathname.startsWith('/messages');
   const isNotifications = location.pathname.startsWith('/notifications');
   const isProfile = location.pathname.startsWith('/profile');
+
+  const getImageUrl = (path) => {
+    if (!path) return defaultAvatar;
+
+    const cleanPath = String(path).trim();
+
+    if (!cleanPath) return defaultAvatar;
+
+    if (
+      cleanPath.startsWith('http://') ||
+      cleanPath.startsWith('https://') ||
+      cleanPath.startsWith('blob:')
+    ) {
+      return cleanPath;
+    }
+
+    return `${API_ROOT}/${cleanPath.replace(/^\/+/, '')}`;
+  };
+
+  const profileImage =
+    user?.photoUrl ||
+    user?.profileImage ||
+    user?.basicInfo?.profileImage ||
+    user?.companyInfo?.logoUrl ||
+    user?.company?.logoUrl ||
+    '';
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('accessToken');
+
+    dispatch(clearMessageUnread());
+    dispatch(clearNotificationUnread());
+    dispatch(clearConnectionUpdateCount());
+
+    setLogoutModal(false);
+    navigate('/login', { replace: true });
+  };
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -70,6 +120,17 @@ const Navbar = () => {
   }, [modal]);
 
   useEffect(() => {
+    if (!logoutModal) return;
+
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = oldOverflow;
+    };
+  }, [logoutModal]);
+
+  useEffect(() => {
     const token = localStorage.getItem('token');
 
     if (!token) return;
@@ -80,7 +141,11 @@ const Navbar = () => {
 
         const requests = Array.isArray(res.data)
           ? res.data
-          : res.data?.data || [];
+          : Array.isArray(res.data?.data)
+          ? res.data.data
+          : Array.isArray(res.data?.Data)
+          ? res.data.Data
+          : [];
 
         dispatch(setPendingReceivedCount(requests.length));
       } catch (err) {
@@ -91,7 +156,7 @@ const Navbar = () => {
     fetchPendingRequestsCount();
 
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:7257/connectionhub', {
+      .withUrl(`${API_ROOT}/connectionhub`, {
         accessTokenFactory: () => localStorage.getItem('token'),
       })
       .withAutomaticReconnect()
@@ -162,12 +227,16 @@ const Navbar = () => {
           .navbar-profile-avatar-active {
             opacity: 1;
           }
+
+          .navbar-logout-button:hover img {
+            opacity: 1 !important;
+            transform: translateY(-1px);
+          }
         `}
       </style>
 
       <nav style={styles.navbar}>
         <div style={styles.navInner}>
-          {/* LEFT: Logo + Search */}
           <div style={styles.brandArea}>
             <Link to="/home" style={styles.logo}>
               WorkHub
@@ -180,9 +249,7 @@ const Navbar = () => {
             )}
           </div>
 
-          {/* MENU */}
           <div style={styles.menu}>
-            {/* HOME */}
             <div style={styles.navItem}>
               <Link
                 to="/home"
@@ -215,7 +282,6 @@ const Navbar = () => {
               </span>
             </div>
 
-            {/* NETWORK */}
             <div style={styles.navItem}>
               <Link
                 to="/network"
@@ -253,7 +319,6 @@ const Navbar = () => {
               </span>
             </div>
 
-            {/* JOBS */}
             <div style={styles.navItem}>
               <Link
                 to="/jobs"
@@ -286,8 +351,7 @@ const Navbar = () => {
               </span>
             </div>
 
-            {/* MESSAGES */}
-            <div style={styles.navItem} onClick={() => navigate('/messages')}>
+            <div style={styles.navItem}>
               <Link
                 to="/messages"
                 className="navbar-icon-link"
@@ -323,7 +387,6 @@ const Navbar = () => {
               </span>
             </div>
 
-            {/* NOTIFICATIONS */}
             <div style={styles.navItem}>
               <Link
                 to="/notifications"
@@ -344,6 +407,10 @@ const Navbar = () => {
                     ...(isNotifications ? styles.activeIcon : {}),
                   }}
                 />
+
+                {notificationUnreadCount > 0 && (
+                  <span style={styles.badge}>{notificationUnreadCount}</span>
+                )}
               </Link>
 
               <span
@@ -356,7 +423,6 @@ const Navbar = () => {
               </span>
             </div>
 
-            {/* PROFILE */}
             <div style={styles.navItem}>
               <Link
                 to="/profile"
@@ -367,16 +433,15 @@ const Navbar = () => {
                 }}
               >
                 <img
-                  src={
-                    user?.photoUrl
-                      ? `https://localhost:7257/${user.photoUrl}`
-                      : defaultAvatar
-                  }
+                  src={getImageUrl(profileImage)}
                   alt="Profile"
                   className={`navbar-profile-avatar ${
                     isProfile ? 'navbar-profile-avatar-active' : ''
                   }`}
                   style={styles.avatar}
+                  onError={(e) => {
+                    e.currentTarget.src = defaultAvatar;
+                  }}
                 />
               </Link>
 
@@ -391,7 +456,45 @@ const Navbar = () => {
             </div>
           </div>
         </div>
+
+        <button
+          type="button"
+          className="navbar-logout-button"
+          onClick={() => setLogoutModal(true)}
+          style={styles.logoutButton}
+          title="Logout"
+        >
+          <img src={logout} alt="Logout" style={styles.logoutIcon} />
+        </button>
       </nav>
+
+      {logoutModal && (
+        <div style={styles.logoutOverlay} onClick={() => setLogoutModal(false)}>
+          <div style={styles.logoutModal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.logoutTitle}>Log out?</h3>
+
+            <p style={styles.logoutText}>Are you sure you want to log out?</p>
+
+            <div style={styles.logoutActions}>
+              <button
+                type="button"
+                onClick={() => setLogoutModal(false)}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                style={styles.confirmButton}
+              >
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
@@ -509,6 +612,8 @@ const styles = {
     fontSize: '10px',
     fontWeight: 700,
     lineHeight: 1,
+    padding: '0 4px',
+    boxSizing: 'border-box',
   },
 
   label: {
@@ -529,5 +634,109 @@ const styles = {
     height: '25px',
     borderRadius: '50%',
     objectFit: 'cover',
+  },
+
+  logoutButton: {
+    position: 'fixed',
+    right: '22px',
+    top: '29px',
+    transform: 'translateY(-50%)',
+
+    width: '36px',
+    height: '36px',
+
+    border: 'none',
+    borderRadius: '50%',
+    backgroundColor: 'transparent',
+
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    cursor: 'pointer',
+    padding: 0,
+    zIndex: 1200,
+  },
+
+  logoutIcon: {
+    width: '23px',
+    height: '23px',
+    objectFit: 'contain',
+    opacity: 0.65,
+    transition: 'opacity 0.18s ease, transform 0.18s ease',
+  },
+
+  logoutOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    zIndex: 3000,
+  },
+
+  logoutModal: {
+    width: '360px',
+    maxWidth: 'calc(100% - 32px)',
+
+    backgroundColor: '#ffffff',
+    borderRadius: '14px',
+    padding: '22px',
+
+    boxShadow: '0 20px 45px rgba(0, 0, 0, 0.18)',
+    boxSizing: 'border-box',
+  },
+
+  logoutTitle: {
+    margin: '0 0 8px',
+    fontSize: '20px',
+    fontWeight: 700,
+    color: '#111',
+  },
+
+  logoutText: {
+    margin: 0,
+    fontSize: '14px',
+    color: '#555',
+    lineHeight: 1.5,
+  },
+
+  logoutActions: {
+    marginTop: '22px',
+
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '10px',
+  },
+
+  cancelButton: {
+    height: '38px',
+    padding: '0 16px',
+
+    borderRadius: '999px',
+    border: '1px solid #d1d5db',
+    backgroundColor: '#ffffff',
+    color: '#374151',
+
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+
+  confirmButton: {
+    height: '38px',
+    padding: '0 18px',
+
+    borderRadius: '999px',
+    border: 'none',
+    backgroundColor: '#2563eb',
+    color: '#ffffff',
+
+    fontSize: '14px',
+    fontWeight: 700,
+    cursor: 'pointer',
   },
 };

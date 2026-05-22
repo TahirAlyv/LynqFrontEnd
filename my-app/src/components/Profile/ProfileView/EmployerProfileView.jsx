@@ -1,12 +1,16 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import api from "../../../services/api";
 import Navbar from "../../Layout/Navbar";
-import defaultAvatar from "../../../assets/default-avatar.png";
-import specialty from "../../../assets/specialty.png";
-import edit from "../../../assets/edit.png";
-import { useNavigate } from "react-router-dom";
- 
-
+import EmployerHeader from "../Employer/EmployerHeader";
+import EmployerTabs from "../Employer/EmployerTabs";
+import EmployerHome from "../Employer/EmployerHome";
+import EmployerAbout from "../Employer/EmployerAbout";
+import EmployerJobPosts from "../../Post/JobPosts/JobPostFeed";
+import EmployerEditModal from "../Employer/EmployerEditModal";
+import Toast from "../../UI/Toast";
+import ActivitiesCarousel from "../Sections/ActivitiesCarousel";
+import EmployerFollowButton from "../Employer/EmployerFollowButton";
+import EmployerFollowersSection from "../Employer/EmployerFollowersSection";
 const EmployerProfileView = ({
   user,
   setUser,
@@ -15,29 +19,109 @@ const EmployerProfileView = ({
   likeConnection,
 }) => {
   const [employer, setEmployer] = useState(user || null);
-  const [selectedButton, setSelectedButton] = useState("About");
+  const [activeTab, setActiveTab] = useState("home");
   const [showModal, setShowModal] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [activeEditSection, setActiveEditSection] = useState("company");
+  const [toast, setToast] = useState(null);
+  const [jobsRefreshKey, setJobsRefreshKey] = useState(0);
+  const [followerCount, setFollowerCount] = useState(0);
 
-  const navigate = useNavigate();
+  const [imageMenu, setImageMenu] = useState({
+    open: false,
+    type: null,
+  });
 
   const [form, setForm] = useState({
-    bio: user?.bio || "",
-    industry: user?.industry || "",
-    website: user?.website || "",
-    location: user?.location || "",
+    bio: "",
+    industry: "",
+    website: "",
+    location: "",
   });
+
+  const menuRef = useRef(null);
+  const profileImageInputRef = useRef(null);
+  const backgroundImageInputRef = useRef(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
 
   useEffect(() => {
     setEmployer(user || null);
+
+    const company = user?.companyInfo || {};
+    const basic = user?.basicInfo || {};
+
     setForm({
-      bio: user?.bio || "",
-      industry: user?.industry || "",
-      website: user?.website || "",
-      location: user?.location || "",
+      bio: company.bio || user?.about?.bio || "",
+      industry: company.industry || "",
+      website: company.website || user?.contactInfo?.website || "",
+      location: company.location || basic.location || "",
     });
   }, [user]);
 
-  if (!employer) return <div>Loading...</div>;
+  useEffect(() => {
+    if (!imageMenu.open) return;
+
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setImageMenu({ open: false, type: null });
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [imageMenu.open]);
+
+  if (!employer) {
+    return <div style={{ textAlign: "center", marginTop: 50 }}>Loading...</div>;
+  }
+
+  const getResponseData = (res) => {
+  if (res?.data?.data) return res.data.data;
+  if (res?.data?.Data) return res.data.Data;
+  return res?.data;
+};
+
+const fetchFollowerCount = async () => {
+  const username =
+    employer?.basicInfo?.username ||
+    employer?.username ||
+    employer?.userName;
+
+  if (!username) return;
+
+  try {
+    const res = await api.get(`/CompanyFollow/followers-count/${username}`);
+    const data = getResponseData(res);
+
+    setFollowerCount(data?.followerCount ?? data?.FollowerCount ?? 0);
+  } catch (err) {
+    console.error("Fetch follower count failed:", err);
+  }
+};
+
+useEffect(() => {
+  fetchFollowerCount();
+}, [employer?.basicInfo?.username]);
+
+  const refreshProfile = async () => {
+    const res = await api.get("/User/me");
+
+    setEmployer(res.data);
+
+    if (setUser) {
+      setUser(res.data);
+    }
+  };
 
   const handleInputChange = (e) => {
     setForm((prev) => ({
@@ -48,206 +132,294 @@ const EmployerProfileView = ({
 
   const handleUpdate = async () => {
     try {
-      await api.put("/user/employer/about", form);
-      alert("Company info updated successfully!");
+      await api.put("/User/employer/about", form);
+      await refreshProfile();
       setShowModal(false);
-
-      const res = await api.get("/user/me");
-      setEmployer(res.data);
-
-      if (setUser) {
-        setUser(res.data);
-      }
     } catch (err) {
-      console.error("Update failed", err);
+      console.error("Employer update failed:", err);
       alert("Update failed!");
     }
   };
 
-  const handleMessage = () => {
-    navigate(`/messages/${employer.userName}`);
+  const handleFollow = () => {
+    alert("Follow sistemi sonra əlavə olunacaq.");
+  };
+
+  const openProfileImageMenu = () => {
+    setImageMenu({
+      open: true,
+      type: "profile",
+    });
+  };
+
+  const openBackgroundImageMenu = () => {
+    setImageMenu({
+      open: true,
+      type: "background",
+    });
+  };
+
+  const handleUploadProfileImage = () => {
+    profileImageInputRef.current?.click();
+  };
+
+  const handleUploadBackgroundImage = () => {
+    backgroundImageInputRef.current?.click();
+  };
+
+  const handleProfileImageSelected = async (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      await api.put("/User/profile-image", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      await refreshProfile();
+
+      setImageMenu({ open: false, type: null });
+      showToast("Logo updated successfully.", "success");
+    } catch (err) {
+      console.error("Logo upload failed:", err);
+      showToast("Logo upload failed.", "error");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleBackgroundImageSelected = async (e) => {
+    const file = e.target.files?.[0];
+
+    if (!file) return;
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      await api.put("/User/background-image", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      await refreshProfile();
+
+      setImageMenu({ open: false, type: null });
+      showToast("Background image updated successfully.", "success");
+    } catch (err) {
+      console.error("Background upload failed:", err);
+      showToast("Background image upload failed.", "error");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteProfileImage = async () => {
+    try {
+      await api.delete("/User/profile-image");
+
+      await refreshProfile();
+
+      setImageMenu({ open: false, type: null });
+      showToast("Logo deleted successfully.", "success");
+    } catch (err) {
+      console.error("Logo delete failed:", err);
+      showToast("Logo delete failed.", "error");
+    }
+  };
+
+  const handleDeleteBackgroundImage = async () => {
+    try {
+      await api.delete("/User/background-image");
+
+      await refreshProfile();
+
+      setImageMenu({ open: false, type: null });
+      showToast("Background image deleted successfully.", "success");
+    } catch (err) {
+      console.error("Background delete failed:", err);
+      showToast("Background image delete failed.", "error");
+    }
   };
 
   return (
     <>
       <Navbar />
 
-      <div style={styles.pageWrapper}>
-        <div style={styles.profileContainer}>
-          <img
-            style={styles.profilePage}
-            src={
-              employer.logoUrl
-                ? `https://localhost:7257/${employer.logoUrl}`
-                : defaultAvatar
-            }
-            alt="company-logo"
-          />
+      <input
+        ref={profileImageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleProfileImageSelected}
+      />
 
-          <div style={styles.nameContainer}>
-            <span style={{ fontSize: 20, fontWeight: 600 }}>
-              {employer.companyName}
-            </span>
+      <input
+        ref={backgroundImageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={handleBackgroundImageSelected}
+      />
 
-            <span style={{ fontSize: 16, fontWeight: 300 }}>
-              @{employer.userName}
-            </span>
+      <div style={styles.page}>
+        <EmployerHeader
+  user={employer}
+  isOwner={isOwner}
+  readOnly={readOnly}
+  onEdit={() => {
+    setActiveEditSection("company");
+    setIsEditOpen(true);
+  }}
+  followerCount={followerCount}
+  followButton={
+    <EmployerFollowButton
+      username={
+        employer?.basicInfo?.username ||
+        employer?.username ||
+        employer?.userName
+      }
+      isOwner={isOwner}
+      showToast={showToast}
+      onChanged={(data) => {
+        if (
+          data?.followerCount !== undefined &&
+          data?.followerCount !== null
+        ) {
+          setFollowerCount(data.followerCount);
+        } else {
+          fetchFollowerCount();
+        }
+      }}
+    />
+      }
+      imageMenu={imageMenu}
+      menuRef={menuRef}
+      onOpenProfileImageMenu={openProfileImageMenu}
+      onOpenBackgroundImageMenu={openBackgroundImageMenu}
+      onUploadProfileImage={handleUploadProfileImage}
+      onUploadBackgroundImage={handleUploadBackgroundImage}
+      onDeleteProfileImage={handleDeleteProfileImage}
+      onDeleteBackgroundImage={handleDeleteBackgroundImage}
+    />
 
-            <div style={{ display: "flex", alignItems: "center" }}>
-              <img
-                style={{ height: 20, marginTop: 5 }}
-                src={specialty}
-                alt="specialty"
-              />
-              <span style={styles.specialty}>{employer.industry}</span>
-            </div>
+        <EmployerTabs activeTab={activeTab} onChange={setActiveTab} />
 
-            <div>
-              {!isOwner && <button style={{ marginRight: 10 }}>Follow</button>}
-              {!isOwner && <button onClick={handleMessage}>Message</button>}
-            </div>
-          </div>
-
-          {!readOnly && (
-            <img
-              onClick={() => setShowModal(true)}
-              style={{
-                width: 35,
-                marginBottom: 60,
-                marginLeft: 400,
-                cursor: "pointer",
-              }}
-              src={edit}
-              alt="edit"
+        {activeTab === "home" && (
+          <>
+            <EmployerHome
+              user={employer}
+              onOpenAbout={() => setActiveTab("about")}
             />
-          )}
-        </div>
+        
+            <EmployerFollowersSection isOwner={isOwner} />
+          </>
+        )}
 
-        <div style={{ display: "flex", marginRight: 465, gap: 7 }}>
-          {["About", "Posts", "Job Postings"].map((label) => (
-            <button
-              key={label}
-              onClick={() => setSelectedButton(label)}
-              style={{
-                ...styles.selectButton,
-                backgroundColor:
-                  selectedButton === label ? "#0068d8ff" : "#2991ffff",
-                width: label === "Job Postings" ? "90px" : "60px",
+        {activeTab === "about" && (
+          <EmployerAbout
+            user={employer}
+            isOwner={isOwner}
+            readOnly={readOnly}
+            onEdit={() => setShowModal(true)}
+          />
+        )}
+
+
+        {activeTab === "posts" && (
+          <div style={styles.postsWrapper}>
+            <ActivitiesCarousel
+             posts={employer?.activitiesPreview?.recentPosts || []}
+             username={employer?.basicInfo?.username}
+             isOwner={isOwner}
+             isEmployer={true}
+             showToast={showToast}
+             likeConnection={likeConnection}
+              userId={
+                employer?.id ||
+                employer?.basicInfo?.userId ||
+                employer?.basicInfo?.id
+              }
+              onPostCreated={(createdPost) => {
+                setEmployer((prev) => {
+                  const prevActivitiesPreview = prev?.activitiesPreview || {};
+                  const prevPreview = prevActivitiesPreview.recentPosts || [];
+                
+                  const next = {
+                    ...prev,
+                    activitiesPreview: {
+                      ...prevActivitiesPreview,
+                      postsCount: (prevActivitiesPreview.postsCount || 0) + 1,
+                      recentPosts: [createdPost, ...prevPreview].slice(0, 5),
+                    },
+                  };
+                
+                  setUser?.(next);
+                  return next;
+                });
+              
+                showToast("Post paylaşıldı.", "success");
               }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {selectedButton === "About" && (
-          <div style={styles.aboutMainContainer}>
-            <div
-              style={{
-                ...styles.aboutContainer,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+              onPostUpdated={(updatedPost) => {
+                setEmployer((prev) => {
+                  const prevActivitiesPreview = prev?.activitiesPreview || {};
+                  const prevPreview = prevActivitiesPreview.recentPosts || [];
+                
+                  const next = {
+                    ...prev,
+                    activitiesPreview: {
+                      ...prevActivitiesPreview,
+                      recentPosts: prevPreview.map((post) =>
+                        post.id === updatedPost.id
+                          ? { ...post, ...updatedPost }
+                          : post
+                      ),
+                    },
+                  };
+                
+                  setUser?.(next);
+                  return next;
+                });
               }}
-            >
-              <span style={styles.aboutTitle}>Overview</span>
-
-              {!readOnly && (
-                <button
-                  onClick={() => setShowModal(true)}
-                  style={{
-                    backgroundColor: "#0673e7ff",
-                    border: "none",
-                    color: "white",
-                    borderRadius: 6,
-                    padding: "5px 20px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Edit
-                </button>
-              )}
-            </div>
-
-            <div style={styles.aboutContainer}>
-              <span style={styles.aboutTitle}>Bio</span>
-              <p>{employer.bio || "Not provided"}</p>
-            </div>
-
-            <div style={styles.aboutContainer}>
-              <span style={styles.aboutTitle}>Industry</span>
-              <p>{employer.industry || "Not provided"}</p>
-            </div>
-
-            <div
-              style={{
-                ...styles.aboutContainer,
-                display: "flex",
-                flexDirection: "column",
-                gap: 5,
+              onPostDeleted={(deletedPostId) => {
+                setEmployer((prev) => {
+                  const prevActivitiesPreview = prev?.activitiesPreview || {};
+                  const prevPreview = prevActivitiesPreview.recentPosts || [];
+                
+                  const next = {
+                    ...prev,
+                    activitiesPreview: {
+                      ...prevActivitiesPreview,
+                      postsCount: Math.max(
+                        (prevActivitiesPreview.postsCount || 0) - 1,
+                        0
+                      ),
+                      recentPosts: prevPreview.filter(
+                        (post) => post.id !== deletedPostId
+                      ),
+                    },
+                  };
+                
+                  setUser?.(next);
+                  return next;
+                });
               }}
-            >
-              <span style={styles.aboutTitle}>Website</span>
-              {employer.website ? (
-                <a
-                  href={
-                    employer.website.startsWith("http")
-                      ? employer.website
-                      : `https://${employer.website}`
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "#0068d8", textDecoration: "none" }}
-                >
-                  {employer.website}
-                </a>
-              ) : (
-                <p>Not provided</p>
-              )}
-            </div>
-
-            <div
-              style={{
-                ...styles.aboutContainer,
-                display: "flex",
-                flexDirection: "column",
-                gap: 5,
-              }}
-            >
-              <span style={styles.aboutTitle}>Location</span>
-              {employer.location ? (
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                    employer.location
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "#0068d8", textDecoration: "none" }}
-                >
-                  {employer.location}
-                </a>
-              ) : (
-                <p>Not provided</p>
-              )}
-            </div>
+            />
           </div>
         )}
 
-        {selectedButton === "Posts" && (
-          <div style={{ width: "700px" }}>
-            {/* {!readOnly && <EmployerPostCreate />}
-            <EmployerPosts
-              userId={employer.id}
-              likeConnection={likeConnection}
+      
+        {activeTab === "jobs" && (
+          <div style={styles.jobsWrapper}>
+            <EmployerJobPosts
+              key={jobsRefreshKey}
+              username={employer?.basicInfo?.username}
               isOwner={isOwner}
-            /> */}
-          </div>
-        )}
-
-        {selectedButton === "Job Postings" && (
-          <div style={{ width: "700px" }}>
-            {!readOnly && <EmployerJobCreate />}
-            {/* <EmployerJobPosts userId={employer.id} /> */}
+              onJobCreated={() => setJobsRefreshKey((prev) => prev + 1)}
+            />
           </div>
         )}
       </div>
@@ -255,17 +427,17 @@ const EmployerProfileView = ({
       {showModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modalContent}>
-            <h3>Edit Company Info</h3>
+            <h3 style={styles.modalTitle}>Edit Company Info</h3>
 
-            <label>Bio:</label>
+            <label style={styles.label}>Bio</label>
             <textarea
               name="bio"
               value={form.bio}
               onChange={handleInputChange}
-              style={{ ...styles.input, height: 150 }}
+              style={{ ...styles.input, height: 120, resize: "vertical" }}
             />
 
-            <label>Industry:</label>
+            <label style={styles.label}>Industry</label>
             <input
               name="industry"
               value={form.industry}
@@ -273,7 +445,7 @@ const EmployerProfileView = ({
               style={styles.input}
             />
 
-            <label>Website:</label>
+            <label style={styles.label}>Website</label>
             <input
               name="website"
               value={form.website}
@@ -281,7 +453,7 @@ const EmployerProfileView = ({
               style={styles.input}
             />
 
-            <label>Location:</label>
+            <label style={styles.label}>Location</label>
             <input
               name="location"
               value={form.location}
@@ -289,26 +461,53 @@ const EmployerProfileView = ({
               style={styles.input}
             />
 
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 10,
-                marginTop: 10,
-              }}
-            >
+            <div style={styles.modalActions}>
               <button
                 onClick={() => setShowModal(false)}
                 style={styles.cancelButton}
               >
                 Cancel
               </button>
+
               <button onClick={handleUpdate} style={styles.saveButton}>
                 Save
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {isEditOpen && (
+        <EmployerEditModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          activeSection={activeEditSection}
+          onChangeSection={setActiveEditSection}
+          user={employer}
+          showToast={showToast}
+          setUser={(updatedUser) => {
+            if (typeof updatedUser === "function") {
+              setEmployer((prev) => {
+                const next = updatedUser(prev);
+                setUser?.(next);
+                return next;
+              });
+
+              return;
+            }
+
+            setEmployer(updatedUser);
+            setUser?.(updatedUser);
+          }}
+        />
+      )}
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </>
   );
@@ -317,104 +516,107 @@ const EmployerProfileView = ({
 export default EmployerProfileView;
 
 const styles = {
-  pageWrapper: {
-    display: "flex",
-    alignItems: "center",
-    gap: "20px",
-    padding: "40px",
-    backgroundColor: "#e9e9e9ff",
+  page: {
     minHeight: "100vh",
-    flexDirection: "column",
-  },
-  profileContainer: {
-    width: "700px",
-    height: "180px",
-    borderRadius: "12px",
-    backgroundColor: "white",
+    backgroundColor: "#f3f2ef",
+    padding: "28px 0 60px",
     display: "flex",
+    flexDirection: "column",
     alignItems: "center",
+    gap: "12px",
   },
-  profilePage: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    objectFit: "cover",
-    marginLeft: 15,
+
+  contentCard: {
+    width: "804px",
+    backgroundColor: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: "10px",
+    padding: "20px",
+    boxSizing: "border-box",
   },
-  nameContainer: {
+
+  jobsWrapper: {
+    width: "820px",
     display: "flex",
     flexDirection: "column",
-    marginBottom: 20,
-    marginLeft: 20,
-    gap: 2,
-    fontFamily: "system-ui, sans-serif",
+    gap: "14px",
   },
-  specialty: {
-    fontSize: 14,
+
+  sectionTitle: {
+    margin: 0,
+    fontSize: "22px",
   },
-  aboutMainContainer: {
-    width: "700px",
-    minHeight: "180px",
-    borderRadius: "12px",
-    backgroundColor: "white",
+
+  muted: {
+    color: "#666",
   },
-  aboutContainer: {
-    padding: 8,
-    width: "95%",
-  },
-  aboutTitle: {
-    fontSize: 18,
-    fontWeight: 600,
-  },
-  selectButton: {
-    border: "none",
-    backgroundColor: "#0082ceff",
-    color: "white",
-    width: 60,
-    height: 32,
-    borderRadius: 10,
-    cursor: "pointer",
-  },
+
   modalOverlay: {
     position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0,0,0,0.4)",
+    inset: 0,
+    backgroundColor: "rgba(0,0,0,0.45)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 9999,
   },
+
   modalContent: {
     backgroundColor: "white",
-    padding: 20,
-    borderRadius: 10,
-    width: "400px",
+    padding: 22,
+    borderRadius: 12,
+    width: "430px",
     display: "flex",
     flexDirection: "column",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.18)",
   },
+
+  modalTitle: {
+    margin: "0 0 16px",
+  },
+
+  label: {
+    fontWeight: 600,
+    marginBottom: 5,
+  },
+
   input: {
-    marginTop: 5,
-    marginBottom: 10,
-    padding: 6,
-    borderRadius: 6,
+    marginBottom: 12,
+    padding: "9px 10px",
+    borderRadius: 8,
     border: "1px solid #ccc",
+    fontSize: 14,
+    fontFamily: "inherit",
   },
+
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 8,
+  },
+
   cancelButton: {
-    backgroundColor: "#999",
+    backgroundColor: "#eee",
     border: "none",
-    color: "white",
-    borderRadius: 6,
-    padding: "6px 12px",
+    color: "#333",
+    borderRadius: 8,
+    padding: "8px 14px",
     cursor: "pointer",
   },
+
   saveButton: {
-    backgroundColor: "#0068d8",
+    backgroundColor: "#0a66c2",
     border: "none",
     color: "white",
-    borderRadius: 6,
-    padding: "6px 12px",
+    borderRadius: 8,
+    padding: "8px 16px",
     cursor: "pointer",
+    fontWeight: 600,
   },
+  postsWrapper: {
+  width: "820px",
+  maxWidth: "820px",
+  boxSizing: "border-box",
+},
 };

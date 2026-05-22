@@ -1,59 +1,137 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import ChatItem from './ChatItem';
-import api from '../../services/api';
-import { jwtDecode } from 'jwt-decode';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import ChatItem from "./ChatItem";
+import api from "../../services/api";
+import * as signalR from "@microsoft/signalr";
 
 const ChatList = () => {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [conversations, setConversations] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [searchUsers, setSearchUsers] = useState([]);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const navigate = useNavigate();
   const { username: selectedUsername } = useParams();
 
-  let currentUser = null;
-  const token = localStorage.getItem('token');
 
-  if (token) {
+  const API_BASE_URL = "https://localhost:7257";
+
+  const fetchChats = async () => {
     try {
-      const decoded = jwtDecode(token);
-      currentUser =
-        decoded['unique_name'] ||
-        decoded['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'];
-    } catch {}
-  }
+      const res = await api.get("/chat/user-chats");
 
-  /* ⏱ Debounce */
+      const data = Array.isArray(res.data)
+        ? res.data
+        : res.data?.data || [];
+
+      setConversations(data);
+    } catch (err) {
+      console.error("Fetch chats failed:", err);
+      setConversations([]);
+    }
+  };
+
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(t);
+  const token = localStorage.getItem("token");
+
+  if (!token) return;
+
+  const connection = new signalR.HubConnectionBuilder()
+    .withUrl(`${API_BASE_URL}/chathub`, {
+      accessTokenFactory: () => localStorage.getItem("token"),
+    })
+    .withAutomaticReconnect()
+    .build();
+
+  connection.on("ReceiveMessage", () => {
+    fetchChats();
+  });
+
+  connection.on("ReceiveOwnMessage", () => {
+    fetchChats();
+  });
+
+  connection
+    .start()
+    .then(() => console.log("ChatList ChatHub connected"))
+    .catch((err) => console.error("ChatList ChatHub error:", err));
+
+  return () => {
+    connection.stop();
+  };
+}, []);
+
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 350);
+
+    return () => clearTimeout(timer);
   }, [search]);
 
-  /* 💬 Chats */
   useEffect(() => {
-    if (!debouncedSearch.trim()) {
-      api.get('/chat/user-chats')
-        .then(res => setConversations(res.data))
-        .catch(() => setConversations([]));
-    }
+    const fetchChats = async () => {
+      if (debouncedSearch) return;
+
+      try {
+        const res = await api.get("/chat/user-chats");
+
+        const data = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data || [];
+
+        setConversations(data);
+      } catch (err) {
+        console.error("Fetch chats failed:", err);
+        setConversations([]);
+      }
+    };
+
+    fetchChats();
   }, [debouncedSearch]);
 
-  /* 🔍 Search */
   useEffect(() => {
-    if (debouncedSearch.trim()) {
-      api.get(`/user/users?query=${debouncedSearch}`)
-        .then(res => setAllUsers(res.data))
-        .catch(() => setAllUsers([]));
-    }
+    const fetchUsers = async () => {
+      if (!debouncedSearch) {
+        setSearchUsers([]);
+        return;
+      }
+
+      try {
+        const res = await api.get(
+          `/user/users?query=${encodeURIComponent(debouncedSearch)}`
+        );
+
+        const data = Array.isArray(res.data)
+          ? res.data
+          : res.data?.data || [];
+
+        setSearchUsers(data);
+      } catch (err) {
+        console.error("Message search failed:", err);
+        setSearchUsers([]);
+      }
+    };
+
+    fetchUsers();
   }, [debouncedSearch]);
 
-  const displayList = debouncedSearch.trim() ? allUsers : conversations;
+  const isSearching = !!debouncedSearch;
+  const displayList = isSearching ? searchUsers : conversations;
+
+  const handleSelect = (item) => {
+    const targetUsername = isSearching
+      ? item.username
+      : item.username;
+
+    if (!targetUsername) return;
+
+    navigate(`/messages/${targetUsername}`);
+  };
 
   return (
     <div style={styles.container}>
-      {/* 🔍 SEARCH – STICKY */}
       <div style={styles.searchWrapper}>
         <input
           type="text"
@@ -64,28 +142,28 @@ const ChatList = () => {
         />
       </div>
 
-      {/* 📜 LIST – SCROLL BURDA */}
       <div style={styles.list}>
-        {displayList.length ? (
-          displayList.map((conv, i) => {
-            const targetUser = debouncedSearch.trim()
-              ? conv.username
-              : conv.receiver === currentUser
-              ? conv.sender
-              : conv.receiver;
+        {displayList.length > 0 ? (
+          displayList.map((item, index) => {
+            const targetUsername = item.username;
 
             return (
               <ChatItem
-                key={i}
-                convo={conv}
-                currentUser={currentUser}
-                isSelected={selectedUsername === targetUser}
-                onSelect={() => navigate(`/messages/${targetUser}`)}
+                key={item.chatId || item.id || targetUsername || index}
+                item={item}
+                isSearchResult={isSearching}
+                isSelected={
+                  selectedUsername?.toLowerCase() ===
+                  targetUsername?.toLowerCase()
+                }
+                onSelect={() => handleSelect(item)}
               />
             );
           })
         ) : (
-          <p style={styles.noUsers}>No conversations found</p>
+          <p style={styles.noUsers}>
+            {isSearching ? "No users found" : "No conversations found"}
+          </p>
         )}
       </div>
     </div>
@@ -94,47 +172,46 @@ const ChatList = () => {
 
 export default ChatList;
 
-
 const styles = {
   container: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
-    overflow: 'hidden',
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    overflow: "hidden",
   },
 
-  /* 🔍 SEARCH */
   searchWrapper: {
-    position: 'sticky',
+    position: "sticky",
     top: 0,
     zIndex: 2,
-    backgroundColor: '#f8fafc',
-    paddingBottom: '12px',
+    backgroundColor: "#f8fafc",
+    padding: "12px",
   },
 
   input: {
-    width: '100%',
-    padding: '14px 16px',
-    borderRadius: '12px',
-    border: '1px solid #e5e7eb',
-    fontSize: '14px',
-    outline: 'none',
+    width: "100%",
+    padding: "14px 16px",
+    borderRadius: "12px",
+    border: "1px solid #e5e7eb",
+    fontSize: "14px",
+    outline: "none",
+    boxSizing: "border-box",
   },
 
-  /* 📜 LIST */
   list: {
-    flex: 1,              // 👈 ƏSAS HƏLL
-    overflowY: 'auto',    // 👈 scroll yalnız burda
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
+    flex: 1,
+    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    padding: "0 8px 8px",
   },
 
   noUsers: {
-    color: '#9ca3af',
-    textAlign: 'center',
-    marginTop: '24px',
-    fontStyle: 'italic',
-    fontSize: '14px',
+    color: "#9ca3af",
+    textAlign: "center",
+    marginTop: "24px",
+    fontStyle: "italic",
+    fontSize: "14px",
   },
 };

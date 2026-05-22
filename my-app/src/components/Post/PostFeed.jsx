@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from "react";
 import api from "../../services/api";
 import CreatePostBox from "./CreatePostBox";
-import PostItem from "./postItem";
+import PostItem from "./PostItem";
  
 
 const PostFeed = ({
   isOwner = false,
+  userId = null,
   showCreateBox = false,
   limit = null,
   title = "Posts",
+  likeConnection,
+  showToast,
 }) => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,11 +25,13 @@ const PostFeed = ({
       let response;
 
       if (isOwner) {
-        response = await api.get("/Post/my?page=1&pageSize=10");
-      } else {
-        setPosts([]);
-        setLoading(false);
-        return;
+          response = await api.get("/Post/my?page=1&pageSize=10");
+        } else if (userId) {
+          response = await api.get(`/Post/user/${userId}?page=1&pageSize=10`);
+        } else {
+          setPosts([]);
+          setLoading(false);
+          return;
       }
 
       const fetchedPosts = response.data?.data || response.data || [];
@@ -77,13 +82,15 @@ const PostFeed = ({
       ) : (
         <div style={styles.list}>
           {visiblePosts.map((post) => (
-            <PostItem
+          <PostItem
             key={post.id}
             post={post}
             showActions={isOwner}
             onPostUpdated={handlePostUpdated}
             onPostDeleted={handlePostDeleted}
-            />
+            likeConnection={likeConnection}
+            showToast={showToast}
+          />
           ))}
         </div>
       )}

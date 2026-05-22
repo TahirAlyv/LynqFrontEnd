@@ -9,6 +9,7 @@ const ActivitiesCarousel = ({
   posts = [],
   username,
   isOwner,
+  isEmployer=false,
   onPostCreated,
   onPostUpdated,
   onPostDeleted,
@@ -58,6 +59,7 @@ const ActivitiesCarousel = ({
       state: {
         isOwner,
         userId,
+        isEmployer,
       },
     });
   };
@@ -72,6 +74,7 @@ const ActivitiesCarousel = ({
       state: {
         isOwner,
         userId,
+        isEmployer,
         openCommentsPostId: postId,
       },
     });
@@ -120,6 +123,7 @@ const ActivitiesCarousel = ({
                 <ActivityPreviewCard
                   post={post}
                   showActions={isOwner}
+                  isEmployer={isEmployer}
                   showToast={showToast}
                   likeConnection={likeConnection}
                   onPostUpdated={onPostUpdated}
